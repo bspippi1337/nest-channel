@@ -1,0 +1,106 @@
+name: Publish NEST Channel v0.3.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-v0.3.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TAG: v0.3.0
+      APK_NAME: NEST-Channel-v0.3.0-debug.apk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate JavaScript
+        run: npm run check
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        working-directory: android
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Prepare release files
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          sha256sum "$APK_NAME" > SHA256SUMS.txt
+          cat > RELEASE_NOTES.md <<'NOTES'
+          # NEST Channel v0.3.0
+
+          **Riktig oppgave. Riktig person. Riktig tidspunkt.**
+
+          Første offentlige Android-utgivelse av NEST Channel med GitHub-basert internett-synk.
+
+          ## Dette er med
+
+          - betinget oppgavebehandling med «blir klar når»
+          - GitHub OAuth Device Flow uten client secret i APK-en
+          - synk over internett, uten krav om samme Wi-Fi
+          - hver kanal lagres som ende-til-ende-krypterte GitHub Issue-kommentarer
+          - automatisk polling, reconnect og sammenslåing av arbeidskopier
+          - ansvarlige, etiketter, oppgavekommentarer og kanalchat
+          - lokal offline-arbeidskopi
+          - OAuth-token og kanalpassord beskyttet med Android Keystore
+          - pedagogisk Om-seksjon som forklarer oppgaveflyten som dører
+
+          ## Før bruk
+
+          Opprett en GitHub OAuth App, aktiver **Device Flow**, og legg Client ID inn i appen. Alle i kanalen bruker samme GitHub-repo, kanalnavn og kanalpassord.
+
+          ## Installasjon
+
+          Last ned APK-en under **Assets**. Android kan be deg tillate installasjon fra nettleseren eller GitHub-appen.
+
+          > Dette er en debug-signert utviklingsutgivelse for testing. Den kan installeres direkte, men er ikke Play Store-signert.
+          NOTES
+
+      - name: Publish or refresh GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title 'NEST Channel v0.3.0 · GitHub Sync' \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+            gh release upload "$TAG" "$APK_NAME" SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" \
+              "$APK_NAME" SHA256SUMS.txt \
+              --target "$GITHUB_SHA" \
+              --title 'NEST Channel v0.3.0 · GitHub Sync' \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+          fi
