@@ -1,0 +1,93 @@
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.mode-switch {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border: 1px solid rgba(105, 240, 174, .22);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, .22);
+}
+
+.mode-switch button {
+  min-width: 92px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--muted, #9fb2a8);
+  font-weight: 800;
+}
+
+.mode-switch button.active {
+  background: #69f0ae;
+  color: #07100c;
+}
+
+.mode-description {
+  margin: 0;
+  color: var(--muted, #9fb2a8);
+}
+
+.host-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 18px;
+  padding: 16px;
+  border: 1px solid rgba(105, 240, 174, .35);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(105, 240, 174, .12), rgba(0, 0, 0, .18));
+}
+
+.host-panel[hidden] {
+  display: none;
+}
+
+.host-panel > div {
+  display: grid;
+  gap: 5px;
+}
+
+.host-kicker {
+  color: #69f0ae;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+#hostAddress {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.host-panel small {
+  color: var(--muted, #9fb2a8);
+}
+
+.error-text {
+  color: #ff8d8d;
+}
+
+@media (max-width: 680px) {
+  .host-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .host-panel button {
+    width: 100%;
+  }
+
+  .mode-switch {
+    width: 100%;
+  }
+}

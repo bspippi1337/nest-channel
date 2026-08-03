@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'no.blckswan.nestchannel'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'no.blckswan.nestchannel'
+        minSdk 26
+        targetSdk 35
+        versionCode 4
+        versionName '0.3.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+def syncWebAssets = tasks.register('syncWebAssets', Copy) {
+    from(rootProject.projectDir.parentFile) {
+        include 'index.html', 'storage-sandbox.js', 'app.js', 'styles.css', 'manifest.webmanifest',
+                'icon.svg', 'service-worker.js', 'github-sync.js', 'github-sync.css', 'about.js', 'about.css'
+    }
+    into(layout.projectDirectory.dir('src/main/assets'))
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(syncWebAssets)
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.0'
+}
