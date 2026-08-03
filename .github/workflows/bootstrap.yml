@@ -1,10 +1,10 @@
 name: Import NEST Channel Source
 
 on:
-  push:
-    branches: [main]
+  pull_request:
     paths:
       - 'NEST-Channel-v0.3.0-GitHub-Sync-Source.zip'
+      - 'bootstrap/run-import.txt'
       - '.github/workflows/bootstrap.yml'
   workflow_dispatch:
 
@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: nest-source-import
+  group: nest-source-import-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -21,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Unpack complete source tree
@@ -40,10 +41,13 @@ jobs:
             /tmp/nest-channel-source/ ./
 
           rm -f "$ZIP"
+          rm -rf bootstrap
           rm -f .github/workflows/bootstrap.yml
 
-      - name: Publish source on main
+      - name: Publish source to import branch
         shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
@@ -51,4 +55,4 @@ jobs:
           git add -A
           git diff --cached --quiet && exit 0
           git commit -m 'Publish NEST Channel v0.3.0 with GitHub sync'
-          git push origin HEAD:main
+          git push origin HEAD:"$HEAD_BRANCH"
