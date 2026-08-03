@@ -1,0 +1,9 @@
+{
+  "name": "nest-channel",
+  "version": "0.3.0",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "check": "node --check app.js && node --check github-sync.js && node --check about.js && node --check service-worker.js && node --check relay/server.js"
+  }
+}

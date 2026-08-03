@@ -1,0 +1,64 @@
+.github-connect-card {
+  position: relative;
+  overflow: hidden;
+}
+.github-connect-card::before {
+  content: "";
+  position: absolute;
+  inset: -12rem -8rem auto auto;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(105,240,174,.12), transparent 66%);
+  pointer-events: none;
+}
+.github-auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+.github-auth-row h2 { font-size: 1.1rem; margin-bottom: .35rem; }
+.github-account { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; }
+.github-user { color: var(--muted); font-size: .82rem; }
+.github-user.online { color: var(--green); }
+.oauth-setup {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 1.2fr);
+  align-items: end;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: .8rem;
+  margin-bottom: .8rem;
+  background: rgba(0,0,0,.16);
+}
+.oauth-setup p { color: var(--muted); font-size: .78rem; padding-bottom: .2rem; }
+.device-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: .8rem;
+  border: 1px solid rgba(105,240,174,.4);
+  border-radius: 14px;
+  background: rgba(105,240,174,.08);
+}
+.device-flow[hidden] { display: none; }
+.device-flow > div { display: grid; gap: .3rem; }
+#deviceUserCode { font: 800 1.45rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; }
+.device-flow small { color: var(--muted); }
+.github-grid { grid-template-columns: 1.35fr 1fr 1fr 1fr; }
+@media (max-width: 900px) {
+  .github-auth-row { align-items: flex-start; flex-direction: column; }
+  .github-account { justify-content: flex-start; }
+  .oauth-setup { grid-template-columns: 1fr; }
+  .github-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .github-grid { grid-template-columns: 1fr; }
+  .device-flow { align-items: stretch; flex-direction: column; }
+}
