@@ -1,171 +1,50 @@
-name: Bootstrap NEST Channel
+name: Import NEST Channel Source
 
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/bootstrap.yml']
+  pull_request:
+    paths:
+      - 'bootstrap/source.b64'
+      - '.github/workflows/bootstrap.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  bootstrap:
+  import:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Import project source
-        env:
-          SOURCE_URL: "https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-5408-820a-a956-6574d67eaba8/raw?se=2026-08-03T01:26:40Z&sp=r&sv=2026-02-06&sr=b&scid=5fff71cc-d57c-54a3-973b-3aa31eb9eb72&skoid=061609b8-1cdb-4a5b-9e68-c7ab9a523a8f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-08-02T21:15:47Z&ske=2026-08-03T21:15:47Z&sks=b&skv=2026-02-06&sig=6WV3X0nSiVgQchcItvwnZKEwUObTh0gpv9SMKIt%2BLlI%3D"
+      - name: Detect source bundle
+        id: source
+        shell: bash
+        run: |
+          if [[ -f bootstrap/source.b64 ]]; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Import complete source tree
+        if: steps.source.outputs.present == 'true'
+        shell: bash
         run: |
           set -euo pipefail
-          curl -fL "$SOURCE_URL" -o /tmp/nest-source.zip
-          mkdir -p /tmp/nest-source
-          unzip -q /tmp/nest-source.zip -d /tmp/nest-source
-          tar -xzf /tmp/nest-source/nest-channel-source.tar.gz -C .
+          base64 --decode bootstrap/source.b64 | tar -xzf -
+          rm -rf bootstrap
           rm -f .github/workflows/bootstrap.yml
 
-          cat > .github/workflows/android.yml <<'YAML'
-          name: NEST Channel APK
-
-          on:
-            push:
-              branches: [main]
-            pull_request:
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          jobs:
-            build:
-              runs-on: ubuntu-latest
-              timeout-minutes: 20
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: '22'
-                - name: Syntax check
-                  run: npm run check
-                - name: Java 17
-                  uses: actions/setup-java@v4
-                  with:
-                    distribution: temurin
-                    java-version: '17'
-                - uses: android-actions/setup-android@v3
-                - name: Install Android SDK
-                  run: |
-                    yes | sdkmanager --licenses >/dev/null || true
-                    sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
-                - name: Gradle 8.9
-                  uses: gradle/actions/setup-gradle@v4
-                  with:
-                    gradle-version: '8.9'
-                - name: Build APK
-                  working-directory: android
-                  run: gradle --no-daemon :app:assembleDebug
-                - name: Rename APK
-                  run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.2.0-debug.apk
-                - name: Upload APK
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: NEST-Channel-Unified-APK
-                    path: NEST-Channel-v0.2.0-debug.apk
-                    retention-days: 30
-                    if-no-files-found: error
-          YAML
-
-          cat > README.md <<'MD'
-          # NEST Channel
-
-          **Riktig oppgave. Riktig person. Riktig tidspunkt.**
-
-          NEST Channel er en lett og kryptert oppgaveapp for små team. Den er bygget rundt betinget oppgavebehandling: En oppgave blir tilgjengelig først når oppgaven den venter på er ferdig.
-
-          ## Én APK, to moduser
-
-          Alle installerer samme APK.
-
-          - **Vert:** Én telefon driver den lokale kanalen og det krypterte reléet.
-          - **Klient:** Kollegene kobler seg til vertstelefonens adresse.
-
-          Ingen separat server, root eller Termux er nødvendig. Telefonene må være på samme Wi-Fi eller koblet til vertens hotspot.
-
-          ## Slik fungerer oppgavene
-
-          Se oppgaver som dører:
-
-          - **Klar:** Døren er åpen. Oppgaven kan utføres nå.
-          - **Venter:** Døren er stengt. Appen viser hva som må bli ferdig først.
-          - **Ferdig:** Én oppgave lukkes og den neste åpnes automatisk.
-
-          Eksempel:
-
-          ```text
-          Bestill reservedel → Monter reservedel → Test og lever
-          ```
-
-          Når første oppgave markeres som ferdig, blir neste oppgave klar for riktig person.
-
-          ## Funksjoner
-
-          - betingede oppgaver med «blir klar når»
-          - ansvarlig person og etiketter
-          - oppgavekommentarer
-          - kryptert kanalchat
-          - sanntidssynk mellom telefoner
-          - Vert/Klient-bryter i samme app
-          - lokal lagring og offline-grensesnitt
-          - innebygd pedagogisk Om-seksjon
-
-          ## Kryptering
-
-          Kanalnavnet hashes før det sendes. Oppgaver og chat krypteres med AES-256-GCM på telefonen. Nøkkelen avledes lokalt fra kanalpassordet med PBKDF2-SHA256 og 250 000 runder. Reléet formidler bare romhash, tidsstempel og kryptert innhold.
-
-          ## Bygg APK
-
-          GitHub Actions bygger en debug-APK automatisk ved push til `main`.
-
-          ```bash
-          git clone https://github.com/bspippi1337/nest-channel.git
-          cd nest-channel/android
-          gradle --no-daemon :app:assembleDebug
-          ```
-
-          APK-en opprettes i `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-          ## Valgfritt eksternt relé
-
-          Mappen `relay/` inneholder en Node.js/Docker-variant for team som senere vil kjøre kanalen utenfor vertstelefonen. Den er ikke nødvendig for vanlig Vert/Klient-bruk.
-          MD
-
-          cat > package.json <<'JSON'
-          {
-            "name": "nest-channel",
-            "version": "0.2.0",
-            "private": true,
-            "scripts": {
-              "start": "python3 -m http.server 8080",
-              "check": "node --check app.js && node --check host-mode.js && node --check about.js && node --check service-worker.js && node --check relay/server.js"
-            }
-          }
-          JSON
-
-          cat > .gitignore <<'EOF'
-          .gradle/
-          **/build/
-          node_modules/
-          *.apk
-          *.aab
-          .DS_Store
-          EOF
-
-      - name: Publish imported source
+      - name: Publish imported source to PR branch
+        if: steps.source.outputs.present == 'true'
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m "Publish NEST Channel v0.2.0"
-          git push origin HEAD:main
+          git commit -m 'Publish NEST Channel v0.3.0 with GitHub OAuth sync'
+          git push origin HEAD:"$HEAD_BRANCH"
