@@ -3,7 +3,7 @@ name: Import NEST Channel Source
 on:
   pull_request:
     paths:
-      - 'bootstrap/source.b64'
+      - 'bootstrap/source.b64.*'
       - '.github/workflows/bootstrap.yml'
   workflow_dispatch:
 
@@ -22,7 +22,7 @@ jobs:
         id: source
         shell: bash
         run: |
-          if [[ -f bootstrap/source.b64 ]]; then
+          if compgen -G 'bootstrap/source.b64.*' > /dev/null; then
             echo 'present=true' >> "$GITHUB_OUTPUT"
           else
             echo 'present=false' >> "$GITHUB_OUTPUT"
@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode bootstrap/source.b64 | tar -xzf -
+          cat bootstrap/source.b64.* | base64 --decode | tar -xzf -
           rm -rf bootstrap
           rm -f .github/workflows/bootstrap.yml
 
