@@ -1,0 +1,337 @@
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+
+.about-button {
+  border: 1px solid rgba(105, 240, 174, .38);
+  border-radius: 999px;
+  padding: .48rem .78rem;
+  background: rgba(105, 240, 174, .08);
+  color: var(--green);
+  font-weight: 800;
+}
+
+.about-dialog {
+  width: min(960px, calc(100vw - 1.25rem));
+  max-height: 94vh;
+  overflow: hidden;
+  border: 1px solid rgba(105, 240, 174, .2);
+  border-radius: 24px;
+  background: #07100c;
+}
+
+.about-shell {
+  max-height: 94vh;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 92% 6%, rgba(105, 240, 174, .16), transparent 24rem),
+    radial-gradient(circle at 4% 54%, rgba(246, 200, 107, .08), transparent 26rem),
+    #07100c;
+}
+
+.about-hero {
+  position: relative;
+  padding: clamp(2rem, 7vw, 5rem);
+  border-bottom: 1px solid var(--line);
+}
+
+.about-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .24);
+  color: var(--muted);
+  font-size: 1.5rem;
+}
+
+.about-kicker,
+.about-overline {
+  color: var(--green);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .18em;
+}
+
+.about-hero h2 {
+  margin-top: 1rem;
+  max-width: 780px;
+  font-size: clamp(2.5rem, 8vw, 5.7rem);
+  line-height: .92;
+  letter-spacing: -.055em;
+}
+
+.about-hero h2 span {
+  color: var(--green);
+}
+
+.about-lead {
+  max-width: 700px;
+  margin-top: 1.7rem;
+  color: #c3d1c9;
+  font-size: clamp(1rem, 2.4vw, 1.3rem);
+  line-height: 1.6;
+}
+
+.about-manifesto,
+.about-learning,
+.about-example,
+.about-product-note {
+  padding: clamp(1.6rem, 5vw, 3.5rem);
+  border-bottom: 1px solid var(--line);
+}
+
+.about-manifesto h3,
+.about-section-heading h3,
+.about-product-note h3 {
+  max-width: 780px;
+  margin-top: .6rem;
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  line-height: 1.08;
+  letter-spacing: -.03em;
+}
+
+.about-manifesto > p:not(.about-overline),
+.about-product-note > p:not(.about-overline) {
+  max-width: 770px;
+  margin-top: 1.2rem;
+  color: #b7c6bd;
+  line-height: 1.75;
+}
+
+.about-manifesto blockquote {
+  margin: 1.7rem 0 0;
+  padding: 1.2rem 1.4rem;
+  border-left: 4px solid var(--green);
+  background: rgba(105, 240, 174, .07);
+  color: #f1fff7;
+  font-size: clamp(1.2rem, 3vw, 1.75rem);
+  font-weight: 750;
+}
+
+.door-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .8rem;
+  margin-top: 1.5rem;
+}
+
+.door-card {
+  position: relative;
+  min-height: 230px;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(12, 24, 17, .78);
+  overflow: hidden;
+}
+
+.door-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -35px -35px auto;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  opacity: .12;
+}
+
+.ready-door::after { background: var(--green); }
+.waiting-door::after { background: var(--amber); }
+.done-door::after { background: #8d9b93; }
+
+.door-number {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .75rem;
+}
+
+.door-card strong {
+  display: block;
+  margin-top: 4.1rem;
+  font-size: 1.5rem;
+}
+
+.ready-door strong { color: var(--green); }
+.waiting-door strong { color: var(--amber); }
+.done-door strong { color: #b8c4bd; }
+
+.door-card p {
+  margin-top: .55rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.example-flow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: center;
+  gap: .65rem;
+  margin-top: 1.5rem;
+}
+
+.example-flow > div {
+  min-height: 150px;
+  display: grid;
+  align-content: center;
+  gap: .45rem;
+  padding: 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(8, 20, 13, .88);
+}
+
+.example-flow > div span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green-dark);
+  color: var(--green);
+  font-weight: 900;
+}
+
+.example-flow i {
+  color: var(--green);
+  font-size: 1.5rem;
+  font-style: normal;
+}
+
+.example-flow small {
+  color: var(--muted);
+}
+
+.example-result {
+  margin-top: 1.2rem;
+  padding: 1rem 1.2rem;
+  border-radius: 14px;
+  background: rgba(246, 200, 107, .08);
+  color: #dfd2ae;
+  line-height: 1.65;
+}
+
+.about-principles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--line);
+}
+
+.principle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  padding: clamp(1.25rem, 4vw, 2.3rem);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.principle:nth-child(even) { border-right: 0; }
+.principle:nth-last-child(-n + 2) { border-bottom: 0; }
+
+.principle > span {
+  color: var(--green);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+.principle strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.principle p {
+  margin-top: .35rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.about-positioning {
+  padding: 1.2rem 1.3rem;
+  border: 1px solid rgba(105, 240, 174, .2);
+  border-radius: 16px;
+  background: rgba(105, 240, 174, .06);
+  color: #d9eee2 !important;
+  font-size: 1.08rem;
+}
+
+.about-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem clamp(1.4rem, 5vw, 3.5rem);
+  background: rgba(5, 12, 8, .94);
+  position: sticky;
+  bottom: 0;
+  border-top: 1px solid var(--line);
+}
+
+.about-footer > div {
+  display: grid;
+  gap: .2rem;
+}
+
+.about-footer span {
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+@media (max-width: 740px) {
+  .topbar-actions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
+  }
+
+  .about-dialog {
+    width: calc(100vw - .5rem);
+    max-height: 97vh;
+    border-radius: 18px;
+  }
+
+  .about-shell { max-height: 97vh; }
+  .door-grid { grid-template-columns: 1fr; }
+
+  .door-card {
+    min-height: 170px;
+  }
+
+  .door-card strong {
+    margin-top: 2.5rem;
+  }
+
+  .example-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .example-flow i {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .about-principles {
+    grid-template-columns: 1fr;
+  }
+
+  .principle,
+  .principle:nth-child(even),
+  .principle:nth-last-child(-n + 2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .principle:last-child { border-bottom: 0; }
+
+  .about-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .about-footer button { width: 100%; }
+}

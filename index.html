@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08100c">
+  <title>NEST Channel</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="github-sync.css">
+  <link rel="stylesheet" href="about.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">BETINGET OPPGAVEBEHANDLING</p>
+      <h1>NEST <span>CHANNEL</span></h1>
+    </div>
+    <div class="topbar-actions">
+      <div class="connection-state">
+        <span id="statusDot" class="status-dot offline"></span>
+        <span id="statusText">Frakoblet</span>
+        <span id="peerCount" class="peer-count">0 på kanalen</span>
+      </div>
+      <button id="aboutButton" class="about-button" type="button" aria-haspopup="dialog">Om</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="connect-card github-connect-card">
+      <div class="github-auth-row">
+        <div>
+          <p class="eyebrow">INTERNETTSYNK VIA GITHUB</p>
+          <h2>Samme kanal, uansett nettverk.</h2>
+          <p class="mode-description">GitHub bærer bare krypterte pakker. Kanalpassordet blir på telefonene.</p>
+        </div>
+        <div class="github-account">
+          <span id="githubUser" class="github-user">Ikke innlogget</span>
+          <button id="githubLoginButton" class="ghost" type="button">Logg inn med GitHub</button>
+          <button id="githubLogoutButton" class="text-button" type="button" hidden>Logg ut</button>
+        </div>
+      </div>
+
+      <div id="oauthSetup" class="oauth-setup">
+        <label>OAuth Client ID
+          <input id="githubClientId" autocomplete="off" placeholder="Lim inn Client ID fra GitHub OAuth App">
+        </label>
+        <p>Første innlogging åpner GitHubs enhetskode-side. Ingen client secret lagres i appen.</p>
+      </div>
+
+      <div id="deviceFlowPanel" class="device-flow" hidden>
+        <div>
+          <span class="host-kicker">GITHUB-KODE</span>
+          <strong id="deviceUserCode">----</strong>
+          <small id="deviceFlowStatus">Åpne GitHub og godkjenn denne telefonen.</small>
+        </div>
+        <button id="openDevicePageButton" class="primary" type="button">Åpne GitHub</button>
+      </div>
+
+      <div class="connect-grid github-grid">
+        <label id="relayLabel">GitHub-repo
+          <input id="relayUrl" type="text" value="bspippi1337/nest-channel" placeholder="eier/repo">
+        </label>
+        <label>Kanal
+          <input id="channelName" maxlength="48" placeholder="#verksted">
+        </label>
+        <label>Kallenavn
+          <input id="nickname" maxlength="32" placeholder="Pippi">
+        </label>
+        <label>Kanalpassord
+          <input id="channelPassword" type="password" minlength="8" placeholder="Minst 8 tegn">
+        </label>
+      </div>
+      <div class="connect-actions">
+        <button id="connectButton" class="primary" type="button">Koble til over internett</button>
+        <button id="disconnectButton" class="ghost" type="button" disabled>Koble fra</button>
+        <span class="hint">Auto-connect slår inn neste gang når GitHub og kanalpassord er lagret sikkert.</span>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="tasks-pane">
+        <form id="taskForm" class="quick-task">
+          <input id="taskTitle" required maxlength="160" placeholder="Ny oppgave">
+          <input id="taskAssignee" maxlength="60" placeholder="Ansvarlig">
+          <select id="taskDependency">
+            <option value="">Kan gjøres med en gang</option>
+          </select>
+          <button class="primary" type="submit">Legg til</button>
+        </form>
+
+        <div class="toolbar">
+          <div id="filters" class="filters">
+            <button class="active" data-filter="ready" type="button">Klar <b id="readyCount">0</b></button>
+            <button data-filter="waiting" type="button">Venter <b id="waitingCount">0</b></button>
+            <button data-filter="done" type="button">Ferdig <b id="doneCount">0</b></button>
+            <button data-filter="all" type="button">Alle <b id="allCount">0</b></button>
+          </div>
+          <input id="searchInput" class="search" placeholder="Søk">
+        </div>
+
+        <div id="taskList" class="task-list"></div>
+      </div>
+
+      <aside class="channel-pane">
+        <div class="channel-heading">
+          <div>
+            <p class="eyebrow">KANAL</p>
+            <h2 id="channelHeading">Ikke tilkoblet</h2>
+          </div>
+          <span id="encryptedBadge" class="encrypted-badge">🔒 E2EE</span>
+        </div>
+        <div id="chatList" class="chat-list">
+          <p class="muted">Koble til en kanal for å snakke med kollegaene.</p>
+        </div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" maxlength="1000" placeholder="Skriv til kanalen…" disabled>
+          <button class="primary" type="submit" disabled>Send</button>
+        </form>
+      </aside>
+    </section>
+  </main>
+
+  <dialog id="taskDialog">
+    <form method="dialog" class="dialog-shell">
+      <div class="dialog-top">
+        <span id="dialogState" class="state-label"></span>
+        <button class="icon-button" value="cancel" aria-label="Lukk">×</button>
+      </div>
+      <input id="editTaskId" type="hidden">
+      <label>Oppgave
+        <input id="editTitle" maxlength="160">
+      </label>
+      <label>Ansvarlig
+        <input id="editAssignee" maxlength="60">
+      </label>
+      <label>Etiketter
+        <input id="editLabels" placeholder="haster, kunde, ute">
+      </label>
+
+      <section>
+        <h3>Blir klar når</h3>
+        <div id="dependencyList"></div>
+        <div class="inline-form">
+          <select id="addDependencySelect"></select>
+          <button id="addDependencyButton" type="button">Legg til vilkår</button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Oppgavekommentarer</h3>
+        <div id="commentList" class="comment-list"></div>
+        <div class="comment-form">
+          <input id="commentText" maxlength="1000" placeholder="Kommentar">
+          <button id="addCommentButton" type="button">Legg til</button>
+        </div>
+      </section>
+
+      <div class="dialog-actions">
+        <button id="deleteTaskButton" class="danger" type="button">Slett</button>
+        <button id="saveTaskButton" class="primary" type="button">Lagre</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="aboutDialog" class="about-dialog" aria-labelledby="aboutTitle">
+    <article class="about-shell">
+      <header class="about-hero">
+        <button id="closeAboutButton" class="about-close" type="button" aria-label="Lukk">×</button>
+        <p class="about-kicker">NEST CHANNEL · BETINGET OPPGAVEBEHANDLING</p>
+        <h2 id="aboutTitle">Riktig oppgave.<br>Riktig person.<br><span>Riktig tidspunkt.</span></h2>
+        <p class="about-lead">NEST gjør arbeidsrekkefølgen synlig. Teamet slipper å gjette hva som kan startes, hva som må vente, og hva som blir neste naturlige steg.</p>
+      </header>
+
+      <section class="about-manifesto">
+        <p class="about-overline">HVORFOR NEST FINNES</p>
+        <h3>En oppgaveliste forteller hva som skal gjøres. NEST forteller når det gir mening å gjøre det.</h3>
+        <p>De fleste forsinkelser skyldes ikke mangel på innsats. De oppstår når folk begynner for tidlig, venter uten å vite hvorfor, eller bruker tid på å spørre hvem som gjør hva videre. NEST erstatter den friksjonen med én enkel setning:</p>
+        <blockquote>«Denne oppgaven blir klar når den forrige er ferdig.»</blockquote>
+      </section>
+
+      <section class="about-learning">
+        <div class="about-section-heading">
+          <p class="about-overline">LÆR MODELLEN PÅ ETT MINUTT</p>
+          <h3>Se oppgaver som dører.</h3>
+        </div>
+        <div class="door-grid">
+          <article class="door-card ready-door">
+            <span class="door-number">01</span>
+            <strong>Klar</strong>
+            <p>Døren er åpen. Oppgaven kan utføres nå.</p>
+          </article>
+          <article class="door-card waiting-door">
+            <span class="door-number">02</span>
+            <strong>Venter</strong>
+            <p>Døren er stengt. Appen viser nøyaktig hva som må bli ferdig først.</p>
+          </article>
+          <article class="door-card done-door">
+            <span class="door-number">03</span>
+            <strong>Ferdig</strong>
+            <p>Du lukker én oppgave og åpner automatisk den neste.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="about-example">
+        <div class="about-section-heading">
+          <p class="about-overline">ET HVERDAGSEKSEMPEL</p>
+          <h3>Fra løs huskeliste til tydelig arbeidsflyt.</h3>
+        </div>
+        <div class="example-flow" aria-label="Eksempel på betinget oppgaveflyt">
+          <div><span>1</span><strong>Bestill reservedel</strong><small>Klar nå · Kari</small></div>
+          <i aria-hidden="true">→</i>
+          <div><span>2</span><strong>Monter reservedel</strong><small>Venter på steg 1 · Ola</small></div>
+          <i aria-hidden="true">→</i>
+          <div><span>3</span><strong>Test og lever</strong><small>Venter på steg 2 · Mina</small></div>
+        </div>
+        <p class="example-result">Når Kari markerer bestillingen som ferdig, blir monteringen klar hos Ola. Ingen statusrunde. Ingen «kan jeg begynne nå?». Bare neste riktige handling.</p>
+      </section>
+
+      <section class="about-principles">
+        <div class="principle">
+          <span>01</span>
+          <div><strong>Skriv konkret</strong><p>«Ring kunden» er bedre enn «Følg opp saken».</p></div>
+        </div>
+        <div class="principle">
+          <span>02</span>
+          <div><strong>Velg forutsetningen</strong><p>Hva må være ferdig før denne oppgaven faktisk kan gjøres?</p></div>
+        </div>
+        <div class="principle">
+          <span>03</span>
+          <div><strong>Gi oppgaven et navn</strong><p>Én ansvarlig skaper tydelig eierskap, uten å gjøre teamarbeid rigid.</p></div>
+        </div>
+        <div class="principle">
+          <span>04</span>
+          <div><strong>Arbeid fra «Klar»</strong><p>Den visningen er teamets operative arbeidsbord. Resten kan vente fordi det skal vente.</p></div>
+        </div>
+      </section>
+
+      <section class="about-product-note">
+        <p class="about-overline">FØLGESKRIV</p>
+        <h3>For små team som vil bruke mindre tid på å koordinere arbeidet og mer tid på å fullføre det.</h3>
+        <p>NEST Channel er en lett, lokal og kryptert samarbeidsapp bygget rundt betinget oppgavebehandling. Alle installerer samme app og logger inn med GitHub. Telefonene kan være på mobilnett, ulike Wi-Fi eller i forskjellige land. GitHub brukes som tilgjengelig synktransport, mens kanalinnholdet krypteres ende-til-ende før det forlater telefonen. Ingen egen server, root eller Termux er nødvendig.</p>
+        <p>Oppgaver, ansvarlige, kommentarer, etiketter og kanalchat synkroniseres fortløpende gjennom en skjult GitHub-kanal representert av en Issue og krypterte kommentarer. GitHub ser rom-ID, tidspunkt og kryptert data, men ikke oppgavene eller samtalene.</p>
+        <p class="about-positioning">Dette er ikke prosjektstyring forkledd som et regneark. Det er en enkel arbeidsmåte som lærer teamet å se sammenhengen mellom <em>først</em>, <em>så</em> og <em>nå</em>.</p>
+      </section>
+
+      <footer class="about-footer">
+        <div>
+          <strong>NEST Channel</strong>
+          <span>Versjon 0.3.0 · BLCKSWAN</span>
+        </div>
+        <button id="aboutStartButton" class="primary" type="button">Se hva som er klart nå</button>
+      </footer>
+    </article>
+  </dialog>
+
+  <template id="emptyTemplate">
+    <div class="empty">
+      <strong>Ingen oppgaver her.</strong>
+      <span>Legg inn neste konkrete handling.</span>
+    </div>
+  </template>
+
+  <script>window.NEST_GITHUB_MODE = true;</script>
+  <script src="storage-sandbox.js"></script>
+  <script src="app.js"></script>
+  <script src="github-sync.js"></script>
+  <script src="about.js"></script>
+</body>
+</html>
