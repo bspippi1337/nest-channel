@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/release-v0.3.0.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.release/v0.3.0.trigger'
   workflow_dispatch:
 
 permissions:
@@ -91,7 +95,6 @@ jobs:
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" \
-              --target "$GITHUB_SHA" \
               --title 'NEST Channel v0.3.0 · GitHub Sync' \
               --notes-file RELEASE_NOTES.md \
               --latest
@@ -99,7 +102,7 @@ jobs:
           else
             gh release create "$TAG" \
               "$APK_NAME" SHA256SUMS.txt \
-              --target "$GITHUB_SHA" \
+              --target main \
               --title 'NEST Channel v0.3.0 · GitHub Sync' \
               --notes-file RELEASE_NOTES.md \
               --latest
