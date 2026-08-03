@@ -43,6 +43,7 @@ jobs:
           rm -f "$ZIP"
           rm -rf bootstrap
           rm -f .github/workflows/bootstrap.yml
+          rm -f .github/workflows/android.yml
 
       - name: Publish source to import branch
         shell: bash
