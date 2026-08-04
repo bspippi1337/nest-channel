@@ -3,6 +3,7 @@ package no.blckswan.nestchannel;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -34,9 +35,12 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final String DEVICE_CODE_URL = "https://github.com/login/device/code";
     private static final String ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
+    private static final String MODE_PREFERENCES = "nest.sync.mode";
 
     private WebView webView;
     private SecureStore secureStore;
+    private SharedPreferences modePreferences;
+    private LocalSyncManager localSyncManager;
     private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
@@ -46,10 +50,29 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(7, 16, 12));
         getWindow().setNavigationBarColor(Color.rgb(7, 16, 12));
         secureStore = new SecureStore(this);
+        modePreferences = getSharedPreferences(MODE_PREFERENCES, MODE_PRIVATE);
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(7, 16, 12));
         setContentView(webView);
+
+        localSyncManager = new LocalSyncManager(this, new LocalSyncManager.Listener() {
+            @Override
+            public void onStatus(String state, int peers, String detail) {
+                callJavaScript("window.NestLocalSync&&window.NestLocalSync.onStatus("
+                        + JSONObject.quote(state) + "," + peers + "," + JSONObject.quote(detail) + ")");
+            }
+
+            @Override
+            public void onWorkspace(String json) {
+                callJavaScript("window.NestLocalSync&&window.NestLocalSync.onWorkspace(" + JSONObject.quote(json) + ")");
+            }
+
+            @Override
+            public void onError(String message) {
+                callJavaScript("window.NestLocalSync&&window.NestLocalSync.onError(" + JSONObject.quote(message) + ")");
+            }
+        });
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -58,9 +81,10 @@ public final class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.3.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/main");
 
         webView.addJavascriptInterface(new NativeBridge(), "NativeHost");
+        webView.addJavascriptInterface(new LocalBridge(), "NativeLocal");
 
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -89,12 +113,22 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public String loadSecret(String key) {
+            if ("github_token".equals(key) && "local".equals(modePreferences.getString("mode", "github"))) {
+                return "";
+            }
             return secureStore.get(key);
         }
 
         @JavascriptInterface
         public void deleteSecret(String key) {
             secureStore.remove(key);
+        }
+
+        @JavascriptInterface
+        public void setSyncMode(String mode) {
+            String safeMode = "local".equals(mode) ? "local" : "github";
+            modePreferences.edit().putString("mode", safeMode).apply();
+            if ("github".equals(safeMode) && localSyncManager != null) localSyncManager.stop();
         }
 
         @JavascriptInterface
@@ -108,6 +142,7 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public void requestGitHubDeviceCode(String clientId) {
+            if ("local".equals(modePreferences.getString("mode", "github"))) return;
             networkExecutor.execute(() -> {
                 try {
                     Map<String, String> form = new LinkedHashMap<>();
@@ -123,6 +158,7 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public void pollGitHubDeviceToken(String clientId, String deviceCode) {
+            if ("local".equals(modePreferences.getString("mode", "github"))) return;
             networkExecutor.execute(() -> {
                 try {
                     Map<String, String> form = new LinkedHashMap<>();
@@ -135,6 +171,26 @@ public final class MainActivity extends Activity {
                     reportNativeError(error);
                 }
             });
+        }
+    }
+
+    private final class LocalBridge {
+        @JavascriptInterface
+        public void start() {
+            if (!"local".equals(modePreferences.getString("mode", "github"))) {
+                modePreferences.edit().putString("mode", "local").apply();
+            }
+            localSyncManager.start();
+        }
+
+        @JavascriptInterface
+        public void stop() {
+            localSyncManager.stop();
+        }
+
+        @JavascriptInterface
+        public void sendWorkspace(String json) {
+            localSyncManager.sendWorkspace(json);
         }
     }
 
@@ -154,7 +210,7 @@ public final class MainActivity extends Activity {
         connection.setDoOutput(true);
         connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-        connection.setRequestProperty("User-Agent", "NEST-Channel-Android/0.3.0");
+        connection.setRequestProperty("User-Agent", "NEST-Channel-Android/main");
 
         byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
         connection.setFixedLengthStreamingMode(bytes.length);
@@ -209,8 +265,9 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (localSyncManager != null) localSyncManager.stop();
         networkExecutor.shutdownNow();
-        webView.destroy();
+        if (webView != null) webView.destroy();
         super.onDestroy();
     }
 }
