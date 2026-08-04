@@ -11,6 +11,14 @@ Versjon **0.4.0** samler to synkmetoder i samme APK:
 
 Ingen root, Termux eller egen server er nødvendig.
 
+## Tegneserien på ett blikk
+
+<p align="center">
+  <img src="./nest-channel-comic.webp" alt="Tegneserie som forklarer betinget oppgavebehandling og hvordan NEST Channel viser Klar, Venter og Ferdig" width="800">
+</p>
+
+Tegneserien viser problemet med en flat oppgaveliste, dørmodellen bak betinget oppgavebehandling og hvordan NEST Channel automatisk gjør neste riktige oppgave klar.
+
 ## Hvorfor NEST
 
 Tradisjonelle oppgavelister forteller hva som skal gjøres. NEST forteller når det gir mening å gjøre det.
@@ -85,7 +93,7 @@ NEST hindrer sirkulære avhengigheter og lar hver oppgave ha ansvarlig person, e
 - automatisk oppdagelse på Wi-Fi og hotspot
 - lokal offline-arbeidskopi
 - Android Keystore for hemmeligheter
-- pedagogisk Om-seksjon med arbeidsflyteksempel
+- pedagogisk Om-seksjon med arbeidsflyteksempel og tegneserie
 - én APK for begge synkmoduser
 
 ## Hurtigstart
