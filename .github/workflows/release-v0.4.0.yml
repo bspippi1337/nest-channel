@@ -1,0 +1,112 @@
+name: Publish NEST Channel v0.4.0
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.release/v0.4.0.trigger'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TAG: v0.4.0
+      APK_NAME: NEST-Channel-v0.4.0-debug.apk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate JavaScript
+        run: npm run check
+
+      - name: Verify v0.4.0 metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "versionCode 5" android/app/build.gradle
+          grep -q "versionName '0.4.0'" android/app/build.gradle
+          node -e "const p=require('./package.json'); if(p.version!=='0.4.0') process.exit(1)"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build unified APK
+        working-directory: android
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Prepare release files
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          sha256sum "$APK_NAME" > SHA256SUMS.txt
+          cat > RELEASE_NOTES.md <<'NOTES'
+          # NEST Channel v0.4.0
+
+          **Riktig oppgave. Riktig person. Riktig tidspunkt. Nå med to synkveier i samme app.**
+
+          v0.4.0 samler kryptert GitHub-synk og direkte lokal synk i én APK.
+
+          ## Nytt i v0.4.0
+
+          - valg mellom **Via GitHub** og **Lokalt · null oppsett**
+          - automatisk lokal oppdagelse på samme Wi-Fi eller hotspot
+          - direkte peer-to-peer-synk uten GitHub, konto, kanal, passord eller IP-adresse
+          - ingen vert/klient-konfigurasjon i lokalmodus
+          - lokal synk av oppgaver, kommentarer og kanaldata
+          - GitHub-innlogging og lagrede hemmeligheter beholdes når modus byttes
+          - multicast og broadcast brukes parallelt for bedre lokal oppdagelse
+          - eksisterende betinget oppgaveflyt, GitHub OAuth og E2EE-internettsynk er beholdt
+
+          ## Lokalmodus
+
+          Åpne appen på telefonene, velg **Lokalt · null oppsett**, og la dem være på samme Wi-Fi eller hotspot. Appene finner hverandre automatisk. For kontinuerlig lokal synk i denne versjonen må appen være åpen.
+
+          ## Installasjon
+
+          Last ned APK-en under **Assets**. Android kan be deg tillate installasjon fra nettleseren eller GitHub-appen.
+
+          > Dette er en debug-signert testutgivelse og er ikke Play Store-signert.
+          NOTES
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title 'NEST Channel v0.4.0 · Dual Sync' \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+            gh release upload "$TAG" "$APK_NAME" SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" \
+              "$APK_NAME" SHA256SUMS.txt \
+              --target main \
+              --title 'NEST Channel v0.4.0 · Dual Sync' \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+          fi
