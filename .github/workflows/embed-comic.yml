@@ -21,7 +21,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
+      - name: Check transfer chunks
+        id: chunks
+        shell: bash
+        run: |
+          if compgen -G '.comic/chunk-*' >/dev/null; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            echo 'Comic already embedded; nothing to reconstruct.'
+          fi
+
       - name: Decode optimized comic asset
+        if: steps.chunks.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -31,6 +43,7 @@ jobs:
           file nest-channel-comic.webp
 
       - name: Embed comic in About and README
+        if: steps.chunks.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -139,13 +152,15 @@ Tegneserien viser problemet med en flat oppgaveliste, dørmodellen bak betinget 
           sw_path.write_text(sw)
           PY
 
-      - name: Remove transfer chunks and commit result
+      - name: Remove transfer files and commit result
+        if: steps.chunks.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
           rm -rf .comic
+          rm -f .github/workflows/embed-comic.yml
           git config user.name 'NEST Channel Builder'
           git config user.email 'actions@users.noreply.github.com'
-          git add README.md index.html about.css service-worker.js android/app/build.gradle nest-channel-comic.webp .comic
+          git add -A
           git commit -m 'Embed screen-friendly NEST comic in About and README'
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
