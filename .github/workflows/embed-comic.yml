@@ -1,0 +1,151 @@
+name: Embed NEST comic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.comic/**'
+
+permissions:
+  contents: write
+
+jobs:
+  embed:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Decode optimized comic asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .comic/chunk-* > /tmp/nest-channel-comic.b64
+          base64 --decode /tmp/nest-channel-comic.b64 > nest-channel-comic.webp
+          test -s nest-channel-comic.webp
+          file nest-channel-comic.webp
+
+      - name: Embed comic in About and README
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          readme_path = Path('README.md')
+          readme = readme_path.read_text()
+          readme_block = '''## Tegneserien på ett blikk
+
+<p align="center">
+  <img src="./nest-channel-comic.webp" alt="Tegneserie som forklarer betinget oppgavebehandling og hvordan NEST Channel viser Klar, Venter og Ferdig" width="800">
+</p>
+
+Tegneserien viser problemet med en flat oppgaveliste, dørmodellen bak betinget oppgavebehandling og hvordan NEST Channel automatisk gjør neste riktige oppgave klar.
+
+'''
+          if '## Tegneserien på ett blikk' not in readme:
+              marker = 'Ingen root, Termux eller egen server er nødvendig.\n\n'
+              if marker not in readme:
+                  raise SystemExit('README insertion marker not found')
+              readme = readme.replace(marker, marker + readme_block, 1)
+              readme_path.write_text(readme)
+
+          index_path = Path('index.html')
+          index = index_path.read_text()
+          comic_html = '''      <section class="about-comic" aria-labelledby="aboutComicTitle">
+        <div class="about-section-heading">
+          <p class="about-overline">TEGNESERIEN</p>
+          <h3 id="aboutComicTitle">Fra flat liste til riktig neste steg.</h3>
+          <p>Se hele modellen i én skjermvennlig stripe: problemet, dørprinsippet, arbeidsflyten og hvordan NEST Channel rydder veien videre.</p>
+        </div>
+        <figure class="about-comic-frame">
+          <img src="nest-channel-comic.webp" alt="Tegneserie som forklarer betinget oppgavebehandling i NEST Channel" loading="lazy" decoding="async">
+          <figcaption>Klar kan gjøres nå. Venter trenger et ferdig vilkår. Ferdig åpner neste oppgave.</figcaption>
+        </figure>
+      </section>
+
+'''
+          if 'class="about-comic"' not in index:
+              marker = '      <section class="about-principles">\n'
+              if marker not in index:
+                  raise SystemExit('About insertion marker not found')
+              index = index.replace(marker, comic_html + marker, 1)
+          index = index.replace('Versjon 0.3.0 · BLCKSWAN', 'Versjon 0.4.0 · BLCKSWAN')
+          index_path.write_text(index)
+
+          css_path = Path('about.css')
+          css = css_path.read_text()
+          comic_css = '''
+
+.about-comic {
+  padding: clamp(1.6rem, 5vw, 3.5rem);
+  border-bottom: 1px solid var(--line);
+}
+
+.about-comic .about-section-heading > p:last-child {
+  max-width: 760px;
+  margin-top: .85rem;
+  color: #b7c6bd;
+  line-height: 1.65;
+}
+
+.about-comic-frame {
+  margin: 1.5rem auto 0;
+  width: min(100%, 800px);
+  overflow: hidden;
+  border: 1px solid rgba(105, 240, 174, .24);
+  border-radius: 20px;
+  background: #030806;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .32);
+}
+
+.about-comic-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.about-comic-frame figcaption {
+  padding: .9rem 1rem 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.5;
+  text-align: center;
+}
+'''
+          if '.about-comic {' not in css:
+              css_path.write_text(css.rstrip() + comic_css + '\n')
+
+          gradle_path = Path('android/app/build.gradle')
+          gradle = gradle_path.read_text()
+          if "'nest-channel-comic.webp'" not in gradle:
+              old = "'icon.svg', 'service-worker.js', 'github-sync.js', 'github-sync.css', 'about.js', 'about.css'"
+              new = "'icon.svg', 'nest-channel-comic.webp', 'service-worker.js', 'github-sync.js', 'github-sync.css', 'about.js', 'about.css'"
+              if old not in gradle:
+                  raise SystemExit('Gradle asset marker not found')
+              gradle_path.write_text(gradle.replace(old, new, 1))
+
+          sw_path = Path('service-worker.js')
+          sw = sw_path.read_text()
+          sw = sw.replace('const CACHE = "nest-channel-v3";', 'const CACHE = "nest-channel-v4";')
+          if './nest-channel-comic.webp' not in sw:
+              sw = sw.replace('"./icon.svg"]', '"./icon.svg", "./nest-channel-comic.webp"]')
+          sw_path.write_text(sw)
+          PY
+
+      - name: Remove transfer chunks and commit result
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .comic
+          git config user.name 'NEST Channel Builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add README.md index.html about.css service-worker.js android/app/build.gradle nest-channel-comic.webp .comic
+          git commit -m 'Embed screen-friendly NEST comic in About and README'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
