@@ -30,7 +30,7 @@ android {
 def syncWebAssets = tasks.register('syncWebAssets', Copy) {
     from(rootProject.projectDir.parentFile) {
         include 'index.html', 'storage-sandbox.js', 'app.js', 'styles.css', 'manifest.webmanifest',
-                'icon.svg', 'service-worker.js', 'github-sync.js', 'github-sync.css', 'about.js', 'about.css'
+                'icon.svg', 'nest-channel-comic.webp', 'service-worker.js', 'github-sync.js', 'github-sync.css', 'about.js', 'about.css'
     }
     into(layout.projectDirectory.dir('src/main/assets'))
 }
