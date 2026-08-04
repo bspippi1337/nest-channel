@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -15,6 +15,29 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Reconstruct screen-friendly comic
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! compgen -G '.comic/chunk-*' >/dev/null; then
+            echo 'No comic chunks to reconstruct.'
+            exit 0
+          fi
+          cat .comic/chunk-* > /tmp/nest-channel-comic.b64
+          base64 --decode /tmp/nest-channel-comic.b64 > nest-channel-comic.webp
+          test -s nest-channel-comic.webp
+          file nest-channel-comic.webp
+          rm -rf .comic
+          git config user.name 'NEST Channel Builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Reconstruct optimized NEST comic asset'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -46,12 +69,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.3.0-debug.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.4.0-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: NEST-Channel-Unified-APK
-          path: NEST-Channel-v0.3.0-debug.apk
+          path: NEST-Channel-v0.4.0-debug.apk
           retention-days: 30
           if-no-files-found: error
