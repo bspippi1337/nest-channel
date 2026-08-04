@@ -152,13 +152,12 @@ Tegneserien viser problemet med en flat oppgaveliste, dørmodellen bak betinget 
           sw_path.write_text(sw)
           PY
 
-      - name: Remove transfer files and commit result
+      - name: Remove transfer chunks and commit result
         if: steps.chunks.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
           rm -rf .comic
-          rm -f .github/workflows/embed-comic.yml
           git config user.name 'NEST Channel Builder'
           git config user.email 'actions@users.noreply.github.com'
           git add -A
