@@ -1,0 +1,111 @@
+name: Publish NEST Channel v0.3.1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/release-v0.3.1.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.release/v0.3.1.trigger'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TAG: v0.3.1
+      APK_NAME: NEST-Channel-v0.3.1-debug.apk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate JavaScript
+        run: npm run check
+
+      - name: Stamp v0.3.1 metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i -E "s/versionCode [0-9]+/versionCode 4/" android/app/build.gradle
+          sed -i -E "s/versionName '[^']+'/versionName '0.3.1'/" android/app/build.gradle
+          sed -i -E 's/NEST-Channel\/[0-9.]+/NEST-Channel\/0.3.1/g' android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json')); p.version='0.3.1'; fs.writeFileSync('package.json', JSON.stringify(p,null,2)+'\n')"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK with updated GUI
+        working-directory: android
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Prepare release files
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          sha256sum "$APK_NAME" > SHA256SUMS.txt
+          cat > RELEASE_NOTES.md <<'NOTES'
+          # NEST Channel v0.3.1
+
+          **Riktig oppgave. Riktig person. Riktig tidspunkt.**
+
+          Denne utgivelsen bygger videre på GitHub-basert, kryptert internett-synk og leverer et tydelig forbedret mobilgrensesnitt.
+
+          ## Nytt i v0.3.1
+
+          - bedre avstand mellom skjermkant, tekst og grafiske elementer
+          - støtte for Android safe-area-insets på begge sider
+          - ryddigere toppfelt og innholdsmarger på smale telefoner
+          - bedre skalering av dialoger og oppgavekort
+          - egen finjustering for skjermer under 400 px bredde
+          - samme krypterte GitHub Issue-synk, OAuth Device Flow og offline-arbeidskopi
+
+          ## Installasjon
+
+          Last ned APK-en under **Assets**. Android kan be deg tillate installasjon fra nettleseren eller GitHub-appen.
+
+          > Dette er en debug-signert testutgivelse og er ikke Play Store-signert.
+          NOTES
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title 'NEST Channel v0.3.1 · Refined Mobile GUI' \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+            gh release upload "$TAG" "$APK_NAME" SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" \
+              "$APK_NAME" SHA256SUMS.txt \
+              --target main \
+              --title 'NEST Channel v0.3.1 · Refined Mobile GUI' \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+          fi
