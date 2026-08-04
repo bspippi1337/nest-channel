@@ -28,13 +28,15 @@ jobs:
       - name: Validate JavaScript
         run: npm run check
 
-      - name: Verify v0.4.0 metadata
+      - name: Verify and stamp v0.4.0 metadata
         shell: bash
         run: |
           set -euo pipefail
           grep -q "versionCode 5" android/app/build.gradle
           grep -q "versionName '0.4.0'" android/app/build.gradle
           node -e "const p=require('./package.json'); if(p.version!=='0.4.0') process.exit(1)"
+          sed -i 's/Versjon 0\.3\.0/Versjon 0.4.0/g' index.html
+          sed -i 's#NEST-Channel/main#NEST-Channel/0.4.0#g; s#NEST-Channel-Android/main#NEST-Channel-Android/0.4.0#g' android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
