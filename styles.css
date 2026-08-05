@@ -221,3 +221,20 @@ dialog::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(3px); }
   .task-list { padding: 0.8rem; gap: 0.5rem; }
   .task-card { padding: 0.65rem; }
 }
+
+/* Keep the app header clear of the Android status bar and display cutouts. */
+.topbar {
+  padding-top: calc(1.35rem + env(safe-area-inset-top, 0px));
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    padding-top: calc(1.25rem + env(safe-area-inset-top, 0px));
+  }
+}
+
+@media (max-width: 400px) {
+  .topbar {
+    padding-top: calc(1.05rem + env(safe-area-inset-top, 0px));
+  }
+}
