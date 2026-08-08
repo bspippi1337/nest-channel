@@ -4,12 +4,20 @@
 
 NEST Channel er en Android-app for betinget oppgavebehandling i små team. I stedet for å vise en flat liste over alt som må gjøres, viser appen hva som faktisk kan gjøres nå, hva som venter, og hvilken oppgave som åpnes når et vilkår er fullført.
 
-Versjon **0.4.0** samler to synkmetoder i samme APK:
+Versjon **0.4.1** samler to synkmetoder i samme APK:
 
 - **Via GitHub** for kryptert samarbeid over internett
 - **Lokalt · null oppsett** for direkte synk på samme Wi-Fi eller hotspot
 
 Ingen root, Termux eller egen server er nødvendig.
+
+## Nytt i v0.4.1
+
+- robust topp-padding i Android WebView
+- `safe-area-inset-top` kombinert med en reell minimumsavstand, slik at headeren ikke spises av statuslinjen
+- egne marginer for normale, smale og ekstra smale skjermer
+- skjermvennlig NEST-tegneserie i Om-seksjonen og README
+- samme Dual Sync-funksjonalitet som v0.4.0
 
 ## Tegneserien på ett blikk
 
@@ -33,15 +41,7 @@ Når den første oppgaven markeres som ferdig, blir den neste automatisk klar. T
 
 ### 1. Via GitHub
 
-GitHub-modus er laget for team som arbeider på forskjellige nettverk eller steder.
-
-Alle bruker samme:
-
-- GitHub-repo
-- kanalnavn
-- kanalpassord
-
-Appen oppretter eller finner en kanal representert av en GitHub Issue. Arbeidskopier krypteres på telefonen før de publiseres som Issue-kommentarer. GitHub transporterer og lagrer kryptert data, men har ikke kanalpassordet.
+GitHub-modus er laget for team som arbeider på forskjellige nettverk eller steder. Alle bruker samme GitHub-repo, kanalnavn og kanalpassord. Arbeidskopier krypteres på telefonen før de publiseres som Issue-kommentarer. GitHub transporterer og lagrer kryptert data, men har ikke kanalpassordet.
 
 **GitHub-modus gir:**
 
@@ -54,19 +54,9 @@ Appen oppretter eller finner en kanal representert av en GitHub Issue. Arbeidsko
 
 ### 2. Lokalt · null oppsett
 
-Lokalmodus er laget for rask bruk i samme rom, verksted, bil, arrangement eller midlertidige team.
+Lokalmodus er laget for rask bruk i samme rom, verksted, bil, arrangement eller midlertidige team. Åpne appen på telefonene, velg **Lokalt · null oppsett**, og la dem være på samme Wi-Fi eller hotspot. Appene finner hverandre automatisk med multicast og broadcast.
 
-Åpne appen på telefonene, velg **Lokalt · null oppsett**, og la dem være på samme Wi-Fi eller hotspot. Appene finner hverandre automatisk med multicast og broadcast.
-
-Ingen av disse feltene er nødvendige:
-
-- konto
-- kanal
-- passord
-- IP-adresse
-- vert eller klient
-
-Oppgaver, kommentarer og kanaldata sendes direkte mellom telefonene. Data går ikke via GitHub eller en ekstern skytjeneste.
+Ingen konto, kanal, passord, IP-adresse eller vert/klient-valg er nødvendig. Oppgaver, kommentarer og kanaldata sendes direkte mellom telefonene uten GitHub eller ekstern skytjeneste.
 
 > Lokalmodus bruker foreløpig ikke applikasjonskryptering. Bruk derfor et lokalt nettverk eller hotspot du stoler på.
 
@@ -85,8 +75,7 @@ NEST hindrer sirkulære avhengigheter og lar hver oppgave ha ansvarlig person, e
 - «blir klar når»-vilkår
 - automatisk status som Klar, Venter eller Ferdig
 - ansvarlig person og etiketter
-- oppgavekommentarer
-- kanalchat
+- oppgavekommentarer og kanalchat
 - søk og filtrering
 - GitHub-basert E2EE-internettsynk
 - lokal nullkonfigurasjonssynk
@@ -132,28 +121,7 @@ Ingen client secret skal bygges inn i APK-en.
 
 GitHub kan se metadata som Issue, tidspunkt og krypterte kommentarer, men ikke det dekrypterte arbeidsinnholdet. I lokalmodus sendes arbeidskopien bare på lokalnettet, men andre enheter på samme nett kan i prinsippet observere trafikken.
 
-## Arkitektur
-
-```text
-┌──────────────────── NEST Channel APK ────────────────────┐
-│                                                         │
-│  Betinget oppgavemotor                                  │
-│  ├─ oppgaver, vilkår, ansvarlige og etiketter           │
-│  ├─ kommentarer og kanalchat                            │
-│  └─ lokal arbeidskopi i WebView-lagring                 │
-│                                                         │
-│  Synkvalg                                               │
-│  ├─ GitHub: OAuth → kryptering → Issue-kommentarer      │
-│  └─ Lokalt: automatisk peer discovery → direkte UDP     │
-│                                                         │
-│  Android-bro                                            │
-│  ├─ Keystore                                            │
-│  ├─ OAuth Device Flow                                   │
-│  └─ LocalSyncManager                                    │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Begrensninger i v0.4.0
+## Begrensninger i v0.4.1
 
 - Lokalmodus krever samme Wi-Fi eller hotspot.
 - Enkelte bedriftsnett og gjestenett blokkerer multicast eller isolerer klienter.
@@ -164,12 +132,7 @@ GitHub kan se metadata som Issue, tidspunkt og krypterte kommentarer, men ikke d
 
 ## Bygg lokalt
 
-Krav:
-
-- Java 17
-- Android SDK 35
-- Gradle 8.9
-- Node.js for JavaScript-sjekken
+Krav: Java 17, Android SDK 35, Gradle 8.9 og Node.js.
 
 ```bash
 git clone https://github.com/bspippi1337/nest-channel.git
@@ -179,24 +142,18 @@ cd android
 gradle --no-daemon :app:assembleDebug
 ```
 
-APK-en bygges til:
-
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-GitHub Actions validerer JavaScript og bygger APK automatisk ved push og pull requests.
+APK-en bygges til `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Prosjektstatus
 
-**v0.4.0 · Dual Sync**
+**v0.4.1 · Dual Sync + GUI safe-area fix**
 
 - GitHub-basert E2EE-synk: implementert
 - lokal nullkonfigurasjonssynk: implementert
 - modusvelger i samme APK: implementert
-- Android CI-bygg: grønt
+- mobil safe-area / topp-padding: fikset
+- Android CI-bygg: grønt når release-kandidaten passerer
 - fysisk test mellom flere telefonmodeller: pågår
-- bakgrunnssynk og kryptert lokalmodus: neste naturlige utviklingssteg
 
 ---
 
