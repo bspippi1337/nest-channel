@@ -240,16 +240,16 @@
 
       <section class="about-product-note">
         <p class="about-overline">FØLGESKRIV</p>
-        <h3>For små team som vil bruke mindre tid på å koordinere arbeidet og mer tid på å fullføre det.</h3>
-        <p>NEST Channel er en lett, lokal og kryptert samarbeidsapp bygget rundt betinget oppgavebehandling. Alle installerer samme app og logger inn med GitHub. Telefonene kan være på mobilnett, ulike Wi-Fi eller i forskjellige land. GitHub brukes som tilgjengelig synktransport, mens kanalinnholdet krypteres ende-til-ende før det forlater telefonen. Ingen egen server, root eller Termux er nødvendig.</p>
-        <p>Oppgaver, ansvarlige, kommentarer, etiketter og kanalchat synkroniseres fortløpende gjennom en skjult GitHub-kanal representert av en Issue og krypterte kommentarer. GitHub ser rom-ID, tidspunkt og kryptert data, men ikke oppgavene eller samtalene.</p>
+        <h3>For små team som vil bruke mindre tid på koordinering og mer tid på å fullføre.</h3>
+        <p>NEST Channel samler betinget oppgavebehandling og to synkveier i én app. GitHub-modus gir ende-til-ende-kryptert samarbeid over internett. Lokalmodus finner telefoner automatisk og etablerer parvise ECDH-nøkler slik at arbeidsdata sendes med AES-256-GCM uten konto, server eller kanalpassord.</p>
+        <p>v0.5.0 gjør synken mer robust med eksponentiell backoff og feltvis konfliktfletting. To telefoner kan endre forskjellige felt på samme oppgave uten at den nyeste hele arbeidskopien nødvendigvis tramper over den andre.</p>
         <p class="about-positioning">Dette er ikke prosjektstyring forkledd som et regneark. Det er en enkel arbeidsmåte som lærer teamet å se sammenhengen mellom <em>først</em>, <em>så</em> og <em>nå</em>.</p>
       </section>
 
       <footer class="about-footer">
         <div>
           <strong>NEST Channel</strong>
-          <span>Versjon 0.3.0 · BLCKSWAN</span>
+          <span>Versjon 0.5.0 · BLCKSWAN</span>
         </div>
         <button id="aboutStartButton" class="primary" type="button">Se hva som er klart nå</button>
       </footer>
@@ -265,6 +265,7 @@
 
   <script>window.NEST_GITHUB_MODE = true;</script>
   <script src="storage-sandbox.js"></script>
+  <script src="nest-core.js"></script>
   <script src="app.js"></script>
   <script src="github-sync.js"></script>
   <script src="about.js"></script>
