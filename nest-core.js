@@ -58,6 +58,10 @@
       const existing = map.get(item.id);
       if (!existing || String(item?.[dateField] || "") > String(existing?.[dateField] || "")) {
         map.set(item.id, item);
+      } else if (existing && String(item?.[dateField] || "") === String(existing?.[dateField] || "")) {
+        const localValue = JSON.stringify(existing);
+        const remoteValue = JSON.stringify(item);
+        if (remoteValue > localValue) map.set(item.id, item);
       }
     }
     return [...map.values()].sort((a, b) => String(a?.[dateField] || "").localeCompare(String(b?.[dateField] || "")));
@@ -67,6 +71,12 @@
     if (Array.isArray(value)) return [...value];
     if (value && typeof value === "object") return { ...value };
     return value;
+  }
+
+  function deterministicValue(left, right) {
+    const leftEncoded = JSON.stringify(left);
+    const rightEncoded = JSON.stringify(right);
+    return rightEncoded > leftEncoded ? cloneValue(right) : cloneValue(left);
   }
 
   function mergeTask(localTask, remoteTask) {
@@ -87,7 +97,9 @@
       } else {
         merged.fieldUpdatedAt[field] = localClock || remoteClock;
         if (field === "labels" || field === "dependsOn") {
-          merged[field] = [...new Set([...(localTask[field] || []), ...(remoteTask[field] || [])])];
+          merged[field] = [...new Set([...(localTask[field] || []), ...(remoteTask[field] || [])])].sort();
+        } else if (JSON.stringify(localTask[field]) !== JSON.stringify(remoteTask[field])) {
+          merged[field] = deterministicValue(localTask[field], remoteTask[field]);
         }
       }
     }
