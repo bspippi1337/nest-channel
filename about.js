@@ -3,6 +3,7 @@
 
   const MODE_KEY = "nest.sync.mode.v1";
   const WORKSPACE_KEY = "nest.channel.workspace.v1";
+  const MANUAL_PEER_KEY = "nest.local.manual-peer.v1";
   const mode = localStorage.getItem(MODE_KEY) === "local" ? "local" : "github";
 
   const dialog = document.getElementById("aboutDialog");
@@ -36,18 +37,18 @@
     .sync-mode-picker{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;padding:.35rem;margin-bottom:1rem;border:1px solid var(--line);border-radius:16px;background:rgba(4,12,8,.7)}
     .sync-mode-picker button{min-height:46px;border:0;border-radius:12px;background:transparent;color:var(--muted);font-weight:800;letter-spacing:.01em}
     .sync-mode-picker button.active{background:var(--green);color:#041008;box-shadow:0 10px 28px rgba(93,240,166,.16)}
-    .sync-panel[hidden]{display:none!important}
-    .local-mode-panel{display:grid;gap:1rem}
+    .sync-panel[hidden]{display:none!important}.local-mode-panel{display:grid;gap:1rem}
     .local-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;align-items:center}
-    .local-orbit{width:74px;height:74px;border:1px solid rgba(105,239,171,.45);border-radius:50%;display:grid;place-items:center;position:relative;color:var(--green);font-weight:900}
+    .local-orbit{width:78px;height:78px;border:1px solid rgba(105,239,171,.45);border-radius:50%;display:grid;place-items:center;position:relative;color:var(--green);font-weight:900;font-size:.74rem;text-align:center;line-height:1.2}
     .local-orbit:before,.local-orbit:after{content:"";position:absolute;border:1px solid rgba(105,239,171,.18);border-radius:50%}.local-orbit:before{inset:8px}.local-orbit:after{inset:18px}
     .local-status-box{display:grid;grid-template-columns:auto 1fr;gap:.8rem;align-items:center;padding:1rem;border:1px solid var(--line);border-radius:16px;background:rgba(3,11,7,.58)}
-    .local-pulse{width:13px;height:13px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(93,240,166,.45);animation:nestPulse 2s infinite}
-    .local-pulse.searching{background:#d8b55b}.local-pulse.offline{background:#637269;animation:none}
+    .local-pulse{width:13px;height:13px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(93,240,166,.45);animation:nestPulse 2s infinite}.local-pulse.searching{background:#d8b55b}.local-pulse.offline{background:#637269;animation:none}
     .local-status-box strong,.local-status-box small{display:block}.local-status-box small{margin-top:.2rem;color:var(--muted)}
+    .local-security{display:flex;gap:.5rem;flex-wrap:wrap}.local-security span{font-size:.72rem;border:1px solid rgba(105,240,174,.3);color:var(--green);border-radius:999px;padding:.3rem .55rem;background:rgba(105,240,174,.06)}
     .local-actions{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}.local-actions .hint{flex:1 1 260px}
+    .manual-peer{border-top:1px solid var(--line);padding-top:1rem;display:grid;gap:.7rem}.manual-peer summary{cursor:pointer;color:#c7d4cc;font-weight:750}.manual-peer-grid{display:grid;grid-template-columns:1fr auto;gap:.55rem}.manual-peer-meta{color:var(--muted);font-size:.76rem;line-height:1.5}.manual-peer code{color:#d9f7e7}
     @keyframes nestPulse{70%{box-shadow:0 0 0 13px rgba(93,240,166,0)}100%{box-shadow:0 0 0 0 rgba(93,240,166,0)}}
-    @media(max-width:560px){.local-hero{grid-template-columns:1fr}.local-orbit{display:none}.sync-mode-picker{margin-bottom:.8rem}}
+    @media(max-width:560px){.local-hero{grid-template-columns:1fr}.local-orbit{display:none}.sync-mode-picker{margin-bottom:.8rem}.manual-peer-grid{grid-template-columns:1fr}.manual-peer-grid button{width:100%}}
   `;
   document.head.append(css);
 
@@ -64,7 +65,7 @@
 
   const localMode = document.createElement("button");
   localMode.type = "button";
-  localMode.textContent = "Lokalt · null oppsett";
+  localMode.textContent = "Lokalt · sikker P2P";
   localMode.classList.toggle("active", mode === "local");
   picker.append(githubMode, localMode);
 
@@ -79,20 +80,30 @@
   localPanel.innerHTML = `
     <div class="local-hero">
       <div>
-        <p class="eyebrow">LOKAL SYNK · UTEN GITHUB</p>
+        <p class="eyebrow">LOKAL SYNK · SIKKER P2P</p>
         <h2>Åpne appen. Telefonene finner hverandre.</h2>
-        <p class="mode-description">Ingen konto, kanal, passord, IP-adresse eller vert/klient-valg. Oppgaver synkroniseres direkte på samme Wi-Fi eller hotspot.</p>
+        <p class="mode-description">Null oppsett er fortsatt standard. Telefonene gjør en automatisk ECDH-håndhilsen og krypterer arbeidsdata parvis med AES-256-GCM på samme Wi-Fi eller hotspot.</p>
       </div>
-      <div class="local-orbit" aria-hidden="true">P2P</div>
+      <div class="local-orbit" aria-hidden="true">AES<br>256</div>
     </div>
+    <div class="local-security"><span>ECDH P-256</span><span>AES-256-GCM</span><span>Ingen sky</span></div>
     <div class="local-status-box">
       <span id="localPulse" class="local-pulse searching"></span>
-      <div><strong id="localStatus">Starter lokal synk …</strong><small id="localPeers">Søker etter andre NEST-telefoner</small></div>
+      <div><strong id="localStatus">Starter sikker lokal synk …</strong><small id="localPeers">Søker etter andre NEST-telefoner</small></div>
     </div>
     <div class="local-actions">
       <button id="restartLocalSync" class="primary" type="button">Søk på nytt</button>
-      <span class="hint">Data forlater ikke lokalnettet. Lokalmodus er laget for rask basisbruk og krever at appen er åpen for kontinuerlig synk.</span>
+      <span class="hint">Oppgavedata sendes ikke i klartekst. Discovery-metadata er synlig på lokalnettet, mens arbeidsinnholdet krypteres parvis.</span>
     </div>
+    <details class="manual-peer">
+      <summary>Avansert fallback · koble til IP manuelt</summary>
+      <p class="manual-peer-meta">Bruk dette bare hvis gjestenett eller bedriftsnett blokkerer multicast. Din adresse: <code id="localOwnIp">ukjent</code></p>
+      <div class="manual-peer-grid">
+        <input id="manualPeerIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.42" aria-label="IP-adresse til annen NEST-telefon">
+        <button id="addManualPeer" class="ghost" type="button">Koble sikkert</button>
+      </div>
+      <p id="manualPeerHint" class="manual-peer-meta">Den andre telefonen må ha NEST Channel åpen i lokalmodus.</p>
+    </details>
   `;
 
   card.replaceChildren(picker, githubPanel, localPanel);
@@ -120,24 +131,27 @@
   const peerCount = document.getElementById("peerCount");
   const channelHeading = document.getElementById("channelHeading");
   const encryptedBadge = document.getElementById("encryptedBadge");
-  const chatForm = document.getElementById("chatForm");
   const chatInput = document.getElementById("chatInput");
-  const chatButton = chatForm?.querySelector("button");
+  const chatButton = document.getElementById("chatForm")?.querySelector("button");
   const localStatus = document.getElementById("localStatus");
   const localPeers = document.getElementById("localPeers");
   const localPulse = document.getElementById("localPulse");
   const restart = document.getElementById("restartLocalSync");
+  const manualPeerIp = document.getElementById("manualPeerIp");
+  const addManualPeer = document.getElementById("addManualPeer");
+  const manualPeerHint = document.getElementById("manualPeerHint");
+  const localOwnIp = document.getElementById("localOwnIp");
   let sendTimer = null;
   let started = false;
 
   function setLocalUi(state, peers = 0, detail = "") {
     const active = state === "active";
     const searching = state === "searching";
-    statusText.textContent = active ? "Lokal synk aktiv" : searching ? "Søker lokalt" : "Lokal synk stoppet";
+    statusText.textContent = active ? "Sikker lokal synk" : searching ? "Søker sikkert lokalt" : "Lokal synk stoppet";
     statusDot.className = `status-dot ${active ? "online" : searching ? "connecting" : "offline"}`;
-    peerCount.textContent = peers > 0 ? `${peers + 1} telefoner lokalt` : "Bare denne telefonen";
-    localStatus.textContent = active ? "Lokal synk er aktiv" : searching ? "Søker etter telefoner …" : "Lokal synk er stoppet";
-    localPeers.textContent = detail || (peers > 0 ? `${peers} annen${peers === 1 ? "" : "e"} NEST-telefon${peers === 1 ? "" : "er"} funnet` : "Oppgaver lagres lokalt mens appen søker");
+    peerCount.textContent = peers > 0 ? `${peers + 1} telefoner · kryptert` : "Bare denne telefonen";
+    localStatus.textContent = active ? "Kryptert lokal synk er aktiv" : searching ? "Søker etter sikre peers …" : "Lokal synk er stoppet";
+    localPeers.textContent = detail || (peers > 0 ? `${peers} sikker peer${peers === 1 ? "" : "s"} funnet` : "Oppgaver lagres lokalt mens appen søker");
     localPulse.className = `local-pulse ${active ? "" : searching ? "searching" : "offline"}`.trim();
   }
 
@@ -145,7 +159,7 @@
     clearTimeout(sendTimer);
     sendTimer = setTimeout(() => {
       try {
-        const raw = localStorage.getItem(WORKSPACE_KEY) || JSON.stringify({ version: 1, tasks: [], chat: [], updatedAt: new Date().toISOString() });
+        const raw = localStorage.getItem(WORKSPACE_KEY) || JSON.stringify({ version: 2, tasks: [], chat: [], updatedAt: new Date().toISOString() });
         window.NativeLocal?.sendWorkspace?.(raw);
       } catch (error) {
         setLocalUi("offline", 0, String(error?.message || error));
@@ -159,11 +173,10 @@
     },
     onWorkspace(raw) {
       try {
-        const remote = JSON.parse(String(raw));
-        mergeWorkspace(remote);
+        mergeWorkspace(JSON.parse(String(raw)));
         queueWorkspaceSend(650);
       } catch (error) {
-        setLocalUi("searching", 0, `Ignorerte ugyldig lokal pakke: ${error?.message || error}`);
+        setLocalUi("searching", 0, `Ignorerte ugyldig sikker pakke: ${error?.message || error}`);
       }
     },
     onError(message) {
@@ -179,12 +192,17 @@
       window.NEST_LOCAL_CONNECTED = true;
       chatInput.disabled = false;
       if (chatButton) chatButton.disabled = false;
-      channelHeading.textContent = "Lokalt nettverk";
-      encryptedBadge.textContent = "⌁ P2P";
-      encryptedBadge.title = "Direkte lokal synk. Ingen GitHub eller skytjeneste.";
+      channelHeading.textContent = "Sikkert lokalnett";
+      encryptedBadge.textContent = "🔒 AES-256";
+      encryptedBadge.title = "ECDH P-256 nøkkelutveksling og AES-256-GCM for arbeidsdata.";
       setLocalUi("searching", 0);
       window.NativeLocal.start();
       started = true;
+      const ownIp = String(window.NativeLocal?.getLocalAddress?.() || "");
+      localOwnIp.textContent = ownIp || "ukjent";
+      const savedPeer = localStorage.getItem(MANUAL_PEER_KEY) || "";
+      manualPeerIp.value = savedPeer;
+      if (savedPeer) setTimeout(() => window.NativeLocal?.addPeer?.(savedPeer), 350);
       queueWorkspaceSend(700);
     } catch (error) {
       setLocalUi("offline", 0, String(error?.message || error));
@@ -196,6 +214,8 @@
     started = false;
     window.NEST_LOCAL_CONNECTED = false;
     socket = null;
+    chatInput.disabled = true;
+    if (chatButton) chatButton.disabled = true;
     setLocalUi("offline", 0);
   }
 
@@ -203,25 +223,18 @@
     if (started) queueWorkspaceSend();
   });
 
-  chatForm?.addEventListener("submit", event => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const text = chatInput.value.trim();
-    if (!text) return;
-    workspace.chat.push({
-      id: crypto.randomUUID(),
-      author: connectedNickname,
-      text,
-      createdAt: new Date().toISOString(),
-      clientId
-    });
-    chatInput.value = "";
-    persist();
-  }, true);
-
   restart?.addEventListener("click", () => {
     stopLocal();
     setTimeout(startLocal, 180);
+  });
+
+  addManualPeer?.addEventListener("click", () => {
+    const host = manualPeerIp.value.trim();
+    if (!host) return;
+    localStorage.setItem(MANUAL_PEER_KEY, host);
+    manualPeerHint.textContent = `Sender sikker håndhilsen til ${host} …`;
+    try { window.NativeLocal?.addPeer?.(host); }
+    catch (error) { manualPeerHint.textContent = String(error?.message || error); }
   });
 
   window.addEventListener("beforeunload", () => {
@@ -269,6 +282,5 @@
   document.head.append(style);
 
   const version = dialog.querySelector(".about-footer span");
-  if (version) version.textContent = "Versjon 0.4.0 · BLCKSWAN";
+  if (version) version.textContent = "Versjon 0.5.0 · BLCKSWAN";
 })();
-
