@@ -8,6 +8,9 @@
   const ISSUE_KEY_PREFIX = "nest.github.issue.v1:";
   const MAX_CHUNK = 44000;
   const POLL_MS = 12000;
+  const BACKOFF_START_MS = 3000;
+  const BACKOFF_MAX_MS = 60000;
+  const REQUEST_TIMEOUT_MS = 20000;
 
   const ui = {
     clientId: document.getElementById("githubClientId"),
@@ -31,6 +34,8 @@
   let lastPollAt = "";
   let lastSentDigest = "";
   let deviceFlow = null;
+  let pollFailures = 0;
+  let syncFailures = 0;
   const seenCommentIds = new Set();
   const chunkGroups = new Map();
 
@@ -69,22 +74,59 @@
     }
   }
 
+  function retryDelay(failures, serverDelay = 0) {
+    const exponential = Math.min(BACKOFF_MAX_MS, BACKOFF_START_MS * (2 ** Math.max(0, failures - 1)));
+    const base = Math.max(exponential, Number(serverDelay) || 0);
+    const jitter = Math.floor(Math.random() * Math.min(1500, Math.max(250, base * 0.2)));
+    return Math.min(BACKOFF_MAX_MS, base + jitter);
+  }
+
+  function retryAfterFrom(response) {
+    const header = response.headers.get("Retry-After");
+    if (header) {
+      const seconds = Number(header);
+      if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+      const date = Date.parse(header);
+      if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+    }
+    const reset = Number(response.headers.get("X-RateLimit-Reset"));
+    if (Number.isFinite(reset) && reset > 0 && (response.status === 403 || response.status === 429)) {
+      return Math.max(0, reset * 1000 - Date.now());
+    }
+    return 0;
+  }
+
   async function api(path, options = {}) {
     if (!token) throw new Error("Logg inn med GitHub først.");
-    const response = await fetch(`${API}${path}`, {
-      ...options,
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": API_VERSION,
-        ...(options.headers || {})
-      }
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response;
+    try {
+      response = await fetch(`${API}${path}`, {
+        ...options,
+        signal: options.signal || controller.signal,
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "X-GitHub-Api-Version": API_VERSION,
+          ...(options.headers || {})
+        }
+      });
+    } catch (error) {
+      const wrapped = new Error(error?.name === "AbortError" ? "GitHub svarte ikke innen 20 sekunder" : `Nettverksfeil: ${error?.message || error}`);
+      wrapped.status = 0;
+      throw wrapped;
+    } finally {
+      clearTimeout(timeout);
+    }
     if (response.status === 304) return null;
     const body = response.status === 204 ? null : await response.json().catch(() => null);
     if (!response.ok) {
       const detail = body?.message ? `: ${body.message}` : "";
-      throw new Error(`GitHub svarte ${response.status}${detail}`);
+      const error = new Error(`GitHub svarte ${response.status}${detail}`);
+      error.status = response.status;
+      error.retryAfterMs = retryAfterFrom(response);
+      throw error;
     }
     return body;
   }
@@ -96,11 +138,15 @@
       githubLogin = user.login || "GitHub-bruker";
       setAuthUi();
       return true;
-    } catch {
-      token = "";
-      githubLogin = "";
-      secretDelete("github_token");
-      setAuthUi();
+    } catch (error) {
+      if (error?.status === 401) {
+        token = "";
+        githubLogin = "";
+        secretDelete("github_token");
+        setAuthUi();
+      } else {
+        setConnectionState("connecting", `GitHub midlertidig utilgjengelig · ${error.message}`);
+      }
       return false;
     }
   }
@@ -278,17 +324,21 @@
 
   async function pollComments() {
     if (!window.NEST_GITHUB_CONNECTED) return;
+    let delay = POLL_MS;
     try {
       const since = lastPollAt ? `&since=${encodeURIComponent(lastPollAt)}` : "";
       const comments = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments?per_page=100&sort=created&direction=asc${since}`);
       lastPollAt = new Date(Date.now() - 1000).toISOString();
       for (const comment of comments) await receiveComment(comment);
+      pollFailures = 0;
       setConnectionState("online", "GitHub-synk aktiv");
     } catch (error) {
-      setConnectionState("connecting", `Synk prøver igjen · ${error.message}`);
+      pollFailures++;
+      delay = retryDelay(pollFailures, error?.retryAfterMs);
+      setConnectionState("connecting", `Synk prøver igjen om ${Math.ceil(delay / 1000)}s · ${error.message}`);
     } finally {
       clearTimeout(pollTimer);
-      if (window.NEST_GITHUB_CONNECTED) pollTimer = setTimeout(pollComments, POLL_MS);
+      if (window.NEST_GITHUB_CONNECTED) pollTimer = setTimeout(pollComments, delay);
     }
   }
 
@@ -301,7 +351,6 @@
     if (!window.NEST_GITHUB_CONNECTED) return;
     const digest = await digestWorkspace();
     if (!force && digest === lastSentDigest) return;
-    lastSentDigest = digest;
 
     const encrypted = await encryptPayload({ kind: "workspace", workspace });
     const total = Math.max(1, Math.ceil(encrypted.data.length / MAX_CHUNK));
@@ -324,15 +373,29 @@
         body: JSON.stringify({ body })
       });
     }
+    lastSentDigest = digest;
+    syncFailures = 0;
     el.peerCount.textContent = "GitHub oppdatert";
+  }
+
+  async function attemptPublish() {
+    if (!window.NEST_GITHUB_CONNECTED) return;
+    try {
+      await publishWorkspace();
+      setConnectionState("online", "GitHub-synk aktiv");
+    } catch (error) {
+      syncFailures++;
+      const delay = retryDelay(syncFailures, error?.retryAfterMs);
+      setConnectionState("connecting", `Venter på GitHub · nytt forsøk om ${Math.ceil(delay / 1000)}s`);
+      clearTimeout(syncTimer);
+      if (window.NEST_GITHUB_CONNECTED) syncTimer = setTimeout(attemptPublish, delay);
+    }
   }
 
   function queuePublish() {
     if (!window.NEST_GITHUB_CONNECTED) return;
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => publishWorkspace().catch(error => {
-      setConnectionState("connecting", `Venter på GitHub · ${error.message}`);
-    }), 1800);
+    syncTimer = setTimeout(attemptPublish, 1800);
   }
 
   async function connectGithub() {
@@ -360,6 +423,8 @@
       await prepareRoom(channel, password);
       issueNumber = await findOrCreateIssue();
       window.NEST_GITHUB_CONNECTED = true;
+      pollFailures = 0;
+      syncFailures = 0;
       el.disconnectButton.disabled = false;
       el.chatInput.disabled = false;
       el.chatForm.querySelector("button").disabled = false;
@@ -383,6 +448,8 @@
     clearTimeout(syncTimer);
     pollTimer = null;
     syncTimer = null;
+    pollFailures = 0;
+    syncFailures = 0;
     issueNumber = 0;
     roomId = "";
     roomKey = null;
