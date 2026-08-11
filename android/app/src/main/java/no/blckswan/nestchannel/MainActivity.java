@@ -192,6 +192,16 @@ public final class MainActivity extends Activity {
         public void sendWorkspace(String json) {
             localSyncManager.sendWorkspace(json);
         }
+
+        @JavascriptInterface
+        public void addPeer(String host) {
+            localSyncManager.addManualPeer(host);
+        }
+
+        @JavascriptInterface
+        public String getLocalAddress() {
+            return localSyncManager.localAddress();
+        }
     }
 
     private String postForm(String endpoint, Map<String, String> values) throws Exception {

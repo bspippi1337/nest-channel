@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Syntax check
+      - name: Syntax and core tests
         run: npm run check
 
       - name: Java 17
@@ -46,12 +46,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.4.1-debug.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.5.0-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: NEST-Channel-Unified-APK
-          path: NEST-Channel-v0.4.1-debug.apk
+          path: NEST-Channel-v0.5.0-debug.apk
           retention-days: 30
           if-no-files-found: error

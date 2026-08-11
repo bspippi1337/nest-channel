@@ -2,22 +2,19 @@
 
 **Riktig oppgave. Riktig person. Riktig tidspunkt.**
 
-NEST Channel er en Android-app for betinget oppgavebehandling i små team. I stedet for å vise en flat liste over alt som må gjøres, viser appen hva som faktisk kan gjøres nå, hva som venter, og hvilken oppgave som åpnes når et vilkår er fullført.
+NEST Channel er en Android-app for betinget oppgavebehandling i små team. I stedet for en flat to-do-liste viser appen hva som faktisk er **Klar**, hva som **Venter**, og hva som automatisk åpnes når en forutsetning blir **Ferdig**.
 
-Versjon **0.4.1** samler to synkmetoder i samme APK:
+Versjon **0.5.0** gjør synken sikrere og mer robust:
 
-- **Via GitHub** for kryptert samarbeid over internett
-- **Lokalt · null oppsett** for direkte synk på samme Wi-Fi eller hotspot
+- GitHub-basert E2EE-synk over internett
+- sikker lokal P2P-synk med automatisk ECDH P-256 + AES-256-GCM
+- nulloppsett discovery på Wi-Fi/hotspot
+- valgfri manuell IP-fallback når multicast blokkeres
+- eksponentiell retry/backoff med jitter og støtte for GitHub `Retry-After`
+- feltvis konfliktfletting i stedet for hel-oppgave «siste skriv vinner»
+- automatiske tester av dørmodellen, syklusdeteksjon og konflikthåndtering
 
 Ingen root, Termux eller egen server er nødvendig.
-
-## Nytt i v0.4.1
-
-- robust topp-padding i Android WebView
-- `safe-area-inset-top` kombinert med en reell minimumsavstand, slik at headeren ikke spises av statuslinjen
-- egne marginer for normale, smale og ekstra smale skjermer
-- skjermvennlig NEST-tegneserie i Om-seksjonen og README
-- samme Dual Sync-funksjonalitet som v0.4.0
 
 ## Tegneserien på ett blikk
 
@@ -25,114 +22,114 @@ Ingen root, Termux eller egen server er nødvendig.
   <img src="./nest-channel-comic.webp" alt="Tegneserie som forklarer betinget oppgavebehandling og hvordan NEST Channel viser Klar, Venter og Ferdig" width="800">
 </p>
 
-Tegneserien viser problemet med en flat oppgaveliste, dørmodellen bak betinget oppgavebehandling og hvordan NEST Channel automatisk gjør neste riktige oppgave klar.
-
-## Hvorfor NEST
-
-Tradisjonelle oppgavelister forteller hva som skal gjøres. NEST forteller når det gir mening å gjøre det.
+## Dørmodellen
 
 ```text
 Bestill reservedel → Monter reservedel → Test og lever
 ```
 
-Når den første oppgaven markeres som ferdig, blir den neste automatisk klar. Teamet slipper statusrunder, dobbeltarbeid og spørsmålet «kan jeg begynne nå?».
+- **Klar:** kan gjøres nå.
+- **Venter:** minst én forutsetning er ikke ferdig.
+- **Ferdig:** oppgaven er fullført og kan åpne neste dør.
 
-## To synkveier i samme app
+NEST avviser sirkulære avhengigheter og lar hver oppgave ha ansvarlig person, etiketter, kommentarer og flere vilkår.
 
-### 1. Via GitHub
+## To synkveier i samme APK
 
-GitHub-modus er laget for team som arbeider på forskjellige nettverk eller steder. Alle bruker samme GitHub-repo, kanalnavn og kanalpassord. Arbeidskopier krypteres på telefonen før de publiseres som Issue-kommentarer. GitHub transporterer og lagrer kryptert data, men har ikke kanalpassordet.
+### Via GitHub
 
-**GitHub-modus gir:**
+GitHub-modus er for team som jobber på ulike nettverk eller steder. Telefonene krypterer arbeidskopien med AES-256-GCM før den publiseres som krypterte GitHub Issue-kommentarer. OAuth-token og kanalpassord lagres via Android Keystore.
 
-- synk over mobilnett og internett
-- ende-til-ende-kryptert kanalinnhold
-- GitHub OAuth Device Flow
-- automatisk polling og reconnect
-- lokal offline-arbeidskopi
-- sikkert lagret OAuth-token og kanalpassord via Android Keystore
+v0.5.0 gjør GitHub-synken mer robust:
 
-### 2. Lokalt · null oppsett
+- requests har timeout
+- polling bruker eksponentiell backoff etter feil
+- jitter reduserer samtidige reconnect-stormer
+- `Retry-After` og rate-limit reset respekteres
+- en mislykket publisering markeres ikke lenger som «allerede sendt»
+- midlertidige GitHub-feil sletter ikke et gyldig OAuth-token
 
-Lokalmodus er laget for rask bruk i samme rom, verksted, bil, arrangement eller midlertidige team. Åpne appen på telefonene, velg **Lokalt · null oppsett**, og la dem være på samme Wi-Fi eller hotspot. Appene finner hverandre automatisk med multicast og broadcast.
+### Lokalt · sikker P2P
 
-Ingen konto, kanal, passord, IP-adresse eller vert/klient-valg er nødvendig. Oppgaver, kommentarer og kanaldata sendes direkte mellom telefonene uten GitHub eller ekstern skytjeneste.
+Standardopplevelsen er fortsatt null oppsett:
 
-> Lokalmodus bruker foreløpig ikke applikasjonskryptering. Bruk derfor et lokalt nettverk eller hotspot du stoler på.
+1. Koble telefonene til samme Wi-Fi eller hotspot.
+2. Åpne NEST Channel.
+3. Velg **Lokalt · sikker P2P**.
+4. Telefonene finner hverandre automatisk.
 
-## Betinget oppgavebehandling
+Discovery bruker UDP multicast/broadcast. Når to NEST-telefoner finner hverandre, utveksler de midlertidige EC-public keys og etablerer en parvis ECDH-hemmelighet. Arbeidsdata komprimeres og krypteres med **AES-256-GCM** før de sendes direkte til peerens IP-adresse.
 
-Se oppgavene som dører:
+Hvis nettverket blokkerer multicast, finnes **Avansert fallback · koble til IP manuelt**. Den endrer ikke krypteringen, den erstatter bare discovery-steget.
 
-- **Klar:** Døren er åpen. Oppgaven kan gjøres nå.
-- **Venter:** Døren er stengt. Appen viser hva som må bli ferdig først.
-- **Ferdig:** Oppgaven lukker seg og åpner neste dør automatisk.
+### Lokal sikkerhetsmodell
 
-NEST hindrer sirkulære avhengigheter og lar hver oppgave ha ansvarlig person, etiketter, kommentarer og én eller flere forutsetninger.
+Lokal v0.5.0 beskytter arbeidsinnhold mot passiv avlytting på nettverket. Discovery-metadata som node-ID, enhetsnavn, IP og offentlig ECDH-nøkkel er ikke hemmelig.
 
-## Funksjoner
+Den automatiske håndhilsenen har foreløpig **ingen menneskeverifisert peer-identitet**. Det betyr at en aktiv angriper på samme nettverk i teorien kan forsøke en man-in-the-middle-posisjon under første nøkkelutveksling. QR-/kodeverifisert pairing er et naturlig neste sikkerhetssteg.
 
-- «blir klar når»-vilkår
-- automatisk status som Klar, Venter eller Ferdig
-- ansvarlig person og etiketter
-- oppgavekommentarer og kanalchat
-- søk og filtrering
-- GitHub-basert E2EE-internettsynk
-- lokal nullkonfigurasjonssynk
-- automatisk oppdagelse på Wi-Fi og hotspot
-- lokal offline-arbeidskopi
-- Android Keystore for hemmeligheter
-- pedagogisk Om-seksjon med arbeidsflyteksempel og tegneserie
-- én APK for begge synkmoduser
+## Feltvis konflikthåndtering
 
-## Hurtigstart
+Fra v0.5.0 har hvert redigerbart oppgavefelt sin egen tidsmarkør:
 
-### Lokal bruk
+- tittel
+- ansvarlig
+- ferdig-status
+- slettet-status
+- etiketter
+- avhengigheter
 
-1. Installer samme APK på telefonene.
-2. Koble telefonene til samme Wi-Fi, eller la dem bruke samme hotspot.
-3. Åpne NEST Channel.
-4. Velg **Lokalt · null oppsett**.
-5. Vent til appen viser at andre NEST-telefoner er funnet.
-6. Opprett eller endre en oppgave. Endringen synkroniseres direkte.
+Hvis telefon A endrer tittelen mens telefon B endrer ansvarlig, kan begge endringene overleve samme merge. Kommentarer flettes separat etter ID. Eldre v0.4.x-data migreres automatisk ved å bruke oppgavens eksisterende `updatedAt` som første feltklokke.
 
-### GitHub-bruk
+## Hurtigstart GitHub
 
 1. Opprett en GitHub OAuth App.
 2. Aktiver **Device Flow**.
 3. Lim Client ID inn i appen.
-4. Logg inn med GitHub.
+4. Logg inn.
 5. Angi repo, kanalnavn, kallenavn og kanalpassord.
 6. Bruk samme kanaldata på de andre telefonene.
 
 Ingen client secret skal bygges inn i APK-en.
 
-## Sikkerhetsmodell
+## Sikkerhetsoversikt
 
-| Område | GitHub-modus | Lokalmodus |
+| Område | GitHub-modus | Lokalmodus v0.5.0 |
 |---|---|---|
-| Transport | GitHub API | UDP multicast og broadcast |
-| Rekkevidde | Internett | Samme Wi-Fi eller hotspot |
+| Transport | GitHub API | Direkte UDP unicast etter discovery |
+| Rekkevidde | Internett | Samme rutbare lokalnett/hotspot |
+| Kryptering | AES-256-GCM | ECDH P-256 + AES-256-GCM |
 | Konto | GitHub OAuth | Ingen |
 | Kanalpassord | Ja | Nei |
-| Applikasjonskryptering | AES-256-GCM | Ikke ennå |
-| Hemmelighetslagring | Android Keystore | Ingen hemmeligheter nødvendig |
+| Discovery | GitHub repo/Issue | Multicast/broadcast eller manuell IP |
 | Ekstern server | GitHub | Ingen |
+| Peer-identitet | GitHub-konto + kanalpassord | Automatisk nøkkelutveksling, ikke menneskeverifisert ennå |
 
-GitHub kan se metadata som Issue, tidspunkt og krypterte kommentarer, men ikke det dekrypterte arbeidsinnholdet. I lokalmodus sendes arbeidskopien bare på lokalnettet, men andre enheter på samme nett kan i prinsippet observere trafikken.
+## Tester og CI
 
-## Begrensninger i v0.4.1
+`npm run check` kjører både JavaScript-syntakssjekk og Node-testene i `tests/core.test.js`.
 
-- Lokalmodus krever samme Wi-Fi eller hotspot.
-- Enkelte bedriftsnett og gjestenett blokkerer multicast eller isolerer klienter.
+Testene dekker blant annet:
+
+- A → B → C åpnes i riktig rekkefølge
+- direkte og transitive dependency-sykluser avvises
+- samtidige endringer i ulike felt bevares
+- kommentarer flettes uavhengig
+- nyere slettemarkør kan vinnes uten å overskrive en nyere tittel
+
+GitHub Actions bygger Android-APK-en etter at kjernetestene er grønne.
+
+## Begrensninger i v0.5.0
+
 - Appen må foreløpig være åpen for kontinuerlig lokal synk.
-- Lokalmodus har ingen applikasjonskryptering eller tilgangskontroll ennå.
-- Konflikter løses ved å slå sammen oppgaver og velge den nyeste oppdateringen per element.
-- APK-en er debug-signert og er ikke Play Store-signert.
+- Klientisolasjon kan blokkere direkte UDP selv med korrekt IP.
+- Lokal kryptering autentiserer ikke fysisk hvem peer-en er ennå.
+- GitHub-synk er polling, ikke ekte realtime push.
+- APK-en er fortsatt debug-signert.
 
 ## Bygg lokalt
 
-Krav: Java 17, Android SDK 35, Gradle 8.9 og Node.js.
+Krav: Java 17, Android SDK 35, Gradle 8.9 og Node.js 22+.
 
 ```bash
 git clone https://github.com/bspippi1337/nest-channel.git
@@ -146,14 +143,16 @@ APK-en bygges til `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Prosjektstatus
 
-**v0.4.1 · Dual Sync + GUI safe-area fix**
+**v0.5.0 · Secure Local Sync + Resilient Sync**
 
-- GitHub-basert E2EE-synk: implementert
-- lokal nullkonfigurasjonssynk: implementert
-- modusvelger i samme APK: implementert
-- mobil safe-area / topp-padding: fikset
-- Android CI-bygg: grønt når release-kandidaten passerer
-- fysisk test mellom flere telefonmodeller: pågår
+- GitHub E2EE: implementert
+- GitHub retry/backoff: implementert
+- lokal ECDH + AES-256-GCM: implementert
+- automatisk discovery: implementert
+- manuell IP-fallback: implementert
+- feltvis konfliktfletting: implementert
+- kjerne-/dørmodelltester: implementert
+- fysisk flertelefonstest av v0.5.0: må verifiseres på ekte enheter
 
 ---
 
