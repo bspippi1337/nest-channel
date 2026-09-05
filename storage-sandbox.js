@@ -81,4 +81,19 @@
       }, 0);
     }
   });
+
+  document.addEventListener("DOMContentLoaded", () => {
+    if (!document.querySelector('link[href="onboarding-v08.css"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "onboarding-v08.css";
+      document.head.append(link);
+    }
+    if (!document.querySelector('script[src="onboarding-v08.js"]')) {
+      const script = document.createElement("script");
+      script.src = "onboarding-v08.js";
+      script.defer = true;
+      document.body.append(script);
+    }
+  });
 })();
