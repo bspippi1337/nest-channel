@@ -16,7 +16,7 @@ install_termux_deps() {
   command -v pkg >/dev/null 2>&1 || return 0
   local packages=()
   command -v gh >/dev/null 2>&1 || packages+=(gh)
-  command -v openssl >/dev/null 2>&1 || packages+=(openssl)
+  command -v openssl >/dev/null 2>&1 || packages+=(openssl-tool)
   command -v base64 >/dev/null 2>&1 || packages+=(coreutils)
   if [ "${#packages[@]}" -gt 0 ]; then
     say "Installerer Termux-avhengigheter: ${packages[*]}"
@@ -26,7 +26,7 @@ install_termux_deps() {
 
 install_termux_deps
 command -v gh >/dev/null 2>&1 || fail "GitHub CLI (gh) mangler."
-command -v openssl >/dev/null 2>&1 || fail "OpenSSL mangler."
+command -v openssl >/dev/null 2>&1 || fail "OpenSSL CLI mangler (Termux-pakken heter openssl-tool)."
 command -v base64 >/dev/null 2>&1 || fail "base64 mangler."
 
 mkdir -p "$KEY_DIR"
@@ -37,42 +37,27 @@ if [ -e "$KEYSTORE" ]; then
 fi
 
 PASSWORD="$(openssl rand -hex 32)"
-TMP_PRIVATE="$KEY_DIR/.nest-app-signing-v1-private.pem.$$"
-trap 'rm -f "$TMP_PRIVATE"' EXIT HUP INT TERM
-umask 077
+PRIVATE_KEY="$KEY_DIR/nest-app-signing-v1-key.pem"
 
-say "Genererer langsiktig NEST app-signing key lokalt med OpenSSL"
-openssl genpkey \
-  -algorithm RSA \
-  -aes-256-cbc \
-  -pass "pass:$PASSWORD" \
-  -pkeyopt rsa_keygen_bits:4096 \
-  -out "$TMP_PRIVATE" >/dev/null 2>&1
-
-openssl req \
-  -new -x509 \
-  -key "$TMP_PRIVATE" \
-  -passin "pass:$PASSWORD" \
-  -sha256 \
+say "Genererer langsiktig NEST app-signing key lokalt"
+openssl req -x509 -newkey rsa:4096 -sha256 -nodes \
+  -keyout "$PRIVATE_KEY" \
+  -out "$CERT" \
   -days 10000 \
-  -subj "/C=NO/O=BLCKSWAN/OU=Release/CN=NEST Channel" \
-  -out "$CERT"
-
-openssl pkcs12 \
-  -export \
-  -inkey "$TMP_PRIVATE" \
-  -passin "pass:$PASSWORD" \
-  -in "$CERT" \
-  -name "$ALIAS" \
-  -passout "pass:$PASSWORD" \
-  -out "$KEYSTORE"
-
-rm -f "$TMP_PRIVATE"
-trap - EXIT HUP INT TERM
-chmod 600 "$KEYSTORE"
+  -subj "/C=NO/O=BLCKSWAN/OU=Release/CN=NEST Channel"
+chmod 600 "$PRIVATE_KEY"
 chmod 644 "$CERT"
 
-FINGERPRINT="$(openssl x509 -in "$CERT" -noout -fingerprint -sha256 | sed 's/^.*=//')"
+openssl pkcs12 -export \
+  -inkey "$PRIVATE_KEY" \
+  -in "$CERT" \
+  -name "$ALIAS" \
+  -out "$KEYSTORE" \
+  -passout "pass:$PASSWORD"
+chmod 600 "$KEYSTORE"
+rm -f "$PRIVATE_KEY"
+
+FINGERPRINT="$(openssl x509 -in "$CERT" -noout -fingerprint -sha256 | sed 's/^sha256 Fingerprint=//I')"
 [ -n "$FINGERPRINT" ] || fail "Kunne ikke lese SHA-256-fingeravtrykket."
 
 umask 077
