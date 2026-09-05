@@ -1,10 +1,10 @@
 {
   "name": "nest-channel",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "start": "python3 -m http.server 8080",
     "test": "node --test tests/*.test.js",
-    "check": "node --check nest-core.js && node --check app.js && node --check github-sync.js && node --check about.js && node --check ux-v06.js && node --check security-v07.js && node --check service-worker.js && node --check relay/server.js && node --test tests/*.test.js"
+    "check": "node --check nest-core.js && node --check app.js && node --check github-sync.js && node --check about.js && node --check ux-v06.js && node --check security-v07.js && node --check onboarding-v08.js && node --check service-worker.js && node --check storage-sandbox.js && node --check relay/server.js && node --test tests/*.test.js"
   }
 }
