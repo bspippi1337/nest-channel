@@ -4,6 +4,28 @@
 
 NEST Channel er en Android-app for betinget oppgavebehandling i små team. Arbeidsbordet viser hva som er **Klar**, hva som **Venter**, og hva som åpnes automatisk når en forutsetning blir **Ferdig**.
 
+## v0.9.0 · Signed Limited Beta
+
+v0.9 er den første release-linjen med en langsiktig Android app-signing-identitet.
+
+- `applicationId`: `no.blckswan.nestchannel`
+- `versionCode 11`
+- `versionName 0.9.0`
+- `compileSdk 36`
+- `targetSdk 36`
+- signert release-APK
+- signert AAB fra samme release-commit
+- gratis limited-distribution-mål: maksimalt 20 registrerte enheter
+- v1.0 er reservert for full Google Play-publisering
+
+Den private app-signing-keyen skal aldri committes. `tools/nest-signing-init.sh` genererer nøkkelen lokalt, lagrer den i `~/.nest-signing`, oppretter GitHub-environment `release` og sender signing-materialet til krypterte environment secrets. Release-workflowen verifiserer APK-sertifikatets SHA-256 mot den låste signeringsidentiteten før noe kan publiseres.
+
+Se `RELEASE_PLAN.md` for den låste overgangen fra v0.9 limited beta til v1.0 Google Play.
+
+## v0.8.0 · Zero-Setup
+
+v0.8 flyttet GitHub-oppsettet bak en førstegangsveiviser: menneskestyrt GitHub signup/verifisering, preutfylt fine-grained-token-oppsett for åpne builds, automatisk privat repo-oppretting og automatisk kanal wiring. Lokalmodus er fortsatt tilgjengelig uten GitHub.
+
 ## v0.7.0 · Security & Sync Core
 
 v0.7 gjør de fire arkitekturgrepene som ble stående etter UX Killer-utgaven:
@@ -31,7 +53,7 @@ NEST avviser sirkulære avhengigheter og lar hver oppgave ha ansvarlig person, e
 
 GitHub brukes bare som transport og lagring av krypterte snapshots. Kanalpassordet blir på telefonene, og workspace krypteres med AES-256-GCM før det publiseres som Issue-kommentarer.
 
-Et registrert v0.7-bygg bruker GitHubs Authorization Code-flow med:
+Et registrert bygg bruker GitHubs Authorization Code-flow med:
 
 - tilfeldig `state`
 - tilfeldig PKCE `code_verifier`
@@ -57,15 +79,11 @@ NEST_GITHUB_CLIENT_ID
 NEST_GITHUB_CLIENT_SECRET
 ```
 
-GitHub Actions-workflowen leser eventuelle repo-secrets med disse navnene under APK-build.
-
-Hvis et åpent/debug-bygg ikke har begge verdiene, faller NEST tilbake til eksisterende Device Flow med brukerlevert Client ID. Det gjør kildekoden byggbar uten at repoet later som det finnes OAuth-credentials som ikke er registrert.
+Hvis et åpent/debug-bygg ikke har begge verdiene, bruker NEST den åpne Zero-Setup/token-ruten i stedet for å late som en skjult OAuth-identitet finnes.
 
 ## Latest-snapshot bootstrap
 
-v0.6 leste hele historikken av NEST-kommentarer ved første GitHub-tilkobling. Det gjorde cold start tregere jo eldre kanalen ble.
-
-v0.7 publiserer komplette krypterte snapshots med envelope-versjon 2 og bootstrapper bakfra:
+NEST publiserer komplette krypterte snapshots med envelope-versjon 2 og bootstrapper bakfra:
 
 1. les antall kommentarer på kanal-Issue
 2. start på siste side
@@ -101,7 +119,7 @@ Resultatet er at:
 
 ## QR-verifisert lokal pairing
 
-Lokalprotokollen er bumpet til **NEST Local v3**. v2-peers blir ikke automatisk godkjent som sikre v3-peers.
+Lokalprotokollen er **NEST Local v3**.
 
 ### Permanent identitet
 
@@ -115,31 +133,15 @@ Privatnøkkelen er ikke eksporterbar fra Android Keystore. UI viser et SHA-256-f
 
 ### Pairing
 
-Telefon A velger **Vis pairing-QR**. QR-en inneholder en `NESTPAIR1`-invitasjon med:
+Telefon A velger **Vis pairing-QR**. QR-en inneholder en `NESTPAIR1`-invitasjon med node-ID, public identity key, identitetsfingeravtrykk, lokal IP, tilfeldig 256-bit engangshemmelighet og fem minutters utløp.
 
-- node-ID
-- public identity key
-- identitetsfingeravtrykk
-- lokal IP
-- tilfeldig 256-bit engangshemmelighet
-- utløp etter fem minutter
-
-Telefon B skanner QR-en eller limer inn koden manuelt.
-
-Engangshemmeligheten sendes ikke rått over lokalnettet. B sender en `pair_request` med HMAC-bevis over request-data og signerer samtidig sin permanente identitet og flyktige sesjonsnøkkel. A verifiserer HMAC + ECDSA, lagrer Bs public identity og svarer med en signert `pair_accept`.
+Telefon B skanner QR-en eller limer inn koden manuelt. Engangshemmeligheten sendes ikke rått over lokalnettet. B sender en `pair_request` med HMAC-bevis og signerer samtidig sin permanente identitet og flyktige sesjonsnøkkel. A verifiserer HMAC + ECDSA, lagrer Bs public identity og svarer med en signert `pair_accept`.
 
 Pairing-hemmeligheten brennes etter første vellykkede request.
 
 ### Hver appstart
 
-Ved hver lokal synkstart genererer NEST en ny flyktig ECDH P-256 keypair. Discovery-handshaken inneholder:
-
-- permanent identity public key
-- flyktig ECDH public key
-- nonce
-- ECDSA-signatur over handshake-data
-
-Kun en identity key som allerede er lagret som trusted får etablere AES-256-GCM sesjonsnøkkel og motta workspace. Hvis samme node-ID plutselig presenterer en annen permanent identity key, blokkeres synk og UI varsles om identitetsendring.
+Ved hver lokal synkstart genererer NEST en ny flyktig ECDH P-256 keypair. Kun en identity key som allerede er trusted får etablere AES-256-GCM sesjonsnøkkel og motta workspace. Hvis samme node-ID plutselig presenterer en annen permanent identity key, blokkeres synk og UI varsles om identitetsendring.
 
 Discovery-trafikk kan fortsatt observeres på LAN-et. Arbeidsdata sendes ikke til ukjente eller uverifiserte peers.
 
@@ -153,7 +155,7 @@ Manuell **Via GitHub** og **Lokalt · sikker P2P** beholdes for kontroll og feil
 
 `npm run check` kjører JavaScript-syntakssjekk og Node-testene.
 
-v0.7-testene dekker blant annet:
+Testene dekker blant annet:
 
 - Klar → Venter → Ferdig-dørmodellen
 - dependency-syklusdeteksjon
@@ -163,13 +165,15 @@ v0.7-testene dekker blant annet:
 - ekstrem wall-clock skew uten konfliktkapring
 - komplette multipart snapshots
 - ignorering av ufullstendige envelopes
-- fallback til siste komplette snapshot når nyere gruppe mangler chunks
+- Zero-Setup GitHub-kontrakten
+- v0.9 API 36/package/signing-invariantene
+- at v0.9/v1.0-milepælene forblir låst
 
-GitHub Actions validerer i tillegg sikkerhetsinvariantene og bygger full Android debug-APK.
+GitHub Actions bygger en vanlig CI debug-APK uten signing-secrets. Den separate `release-v09.yml`-workflowen kan bare bygge/publisere release når det beskyttede `release`-environmentet har komplett signing-materiale og forventet sertifikatfingeravtrykk.
 
 ## Bygg
 
-Krav: Java 17, Android SDK 35, Gradle 8.9 og Node.js 22+.
+Krav: Java 17, Android SDK 36, Android Build Tools 36.0.0, AGP 8.9.1, Gradle 8.11.1 og Node.js 22+.
 
 ```bash
 git clone https://github.com/bspippi1337/nest-channel.git
@@ -179,40 +183,61 @@ cd android
 gradle --no-daemon :app:assembleDebug
 ```
 
-Med registrert OAuth App:
+### Opprett release-signering fra Termux/Linux
+
+Kjør én gang:
 
 ```bash
-export NEST_GITHUB_CLIENT_ID='...'
-export NEST_GITHUB_CLIENT_SECRET='...'
-cd android
-gradle --no-daemon :app:assembleDebug
+bash tools/nest-signing-init.sh
 ```
 
-APK:
+Scriptet:
+
+1. genererer en RSA-4096 PKCS12 app-signing-key lokalt
+2. nekter å overskrive en eksisterende nøkkel
+3. eksporterer offentlig sertifikat + SHA-256 fingerprint
+4. lagrer lokale credentials med stramme filrettigheter
+5. bruker `gh` til å opprette GitHub-environment `release`
+6. setter de nødvendige krypterte environment secrets
+
+Etter at nøkkelbackup er kontrollert og v0.9 er på `main`:
+
+```bash
+gh workflow run release-v09.yml -R bspippi1337/nest-channel --ref main -f version=v0.9.0 -f publish=true
+```
+
+Release-workflowen bygger og verifiserer:
 
 ```text
-android/app/build/outputs/apk/debug/app-debug.apk
+NEST-Channel-0.9.0-release.apk
+NEST-Channel-0.9.0-release.aab
+NEST-Channel-0.9.0-SHA256SUMS.txt
+NEST-Channel-0.9.0-cert-sha256.txt
 ```
 
 ## Status
 
-**v0.7.0 · Security & Sync Core**
+**v0.9.0 · Signed Limited Beta**
 
 - dørmodell: implementert
 - arbeidsbord først: implementert
 - Auto-synk: implementert
 - GitHub E2EE: implementert
-- Authorization Code + PKCE kodevei: implementert
-- Device Flow fallback for uregistrerte builds: implementert
+- Zero-Setup: implementert
+- Authorization Code + PKCE kodevei: implementert for registrerte builds
 - latest-snapshot bootstrap: implementert
 - Lamport-feltklokker: implementert
 - Android Keystore permanent lokal identitet: implementert
 - QR-verifisert `NESTPAIR1`: implementert
 - signerte flyktige ECDH-sesjoner: implementert
 - unknown-peer deny-by-default: implementert
-- fysisk flertelefonstest av v0.7: må fortsatt verifiseres på ekte enheter
-- production OAuth krever at de faktiske GitHub OAuth App-credentials legges inn som build-secrets
-- APK-en er fortsatt debug-signert i dagens CI
+- API 36 buildline: implementert
+- production release signing pipeline: implementert
+- signing private key in Git: forbudt
+- v0.9 distribution target: gratis limited beta, maks 20 enheter
+- v1.0 distribution target: full Google Play
+- fysisk flertelefonstest: må fortsatt verifiseres på ekte enheter
+- signing secrets må provisioneres én gang med `tools/nest-signing-init.sh` før første signerte release kan publiseres
 
 ---
 

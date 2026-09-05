@@ -95,5 +95,11 @@
       script.defer = true;
       document.body.append(script);
     }
+    if (!document.querySelector('script[src="release-v09.js"]')) {
+      const releaseScript = document.createElement("script");
+      releaseScript.src = "release-v09.js";
+      releaseScript.defer = true;
+      document.body.append(releaseScript);
+    }
   });
 })();

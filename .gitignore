@@ -3,4 +3,10 @@
 node_modules/
 *.apk
 *.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
 .DS_Store

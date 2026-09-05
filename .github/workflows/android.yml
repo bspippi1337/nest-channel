@@ -23,18 +23,21 @@ jobs:
       - name: Syntax and core tests
         run: npm run check
 
-      - name: Validate v0.8 zero-setup and security invariants
+      - name: Validate v0.9 release invariants
         shell: bash
         run: |
           set -euo pipefail
-          grep -q "versionCode 10" android/app/build.gradle
-          grep -q "versionName '0.8.0'" android/app/build.gradle
-          grep -q 'onboarding-v08.js' android/app/build.gradle
-          grep -q 'personal-access-tokens/new' onboarding-v08.js
-          grep -q 'administration=write' onboarding-v08.js
-          grep -q 'issues=write' onboarding-v08.js
-          grep -q 'private: true' onboarding-v08.js
-          grep -q 'github.com/signup' onboarding-v08.js
+          grep -q "id 'com.android.application' version '8.9.1'" android/build.gradle
+          grep -q 'compileSdk 36' android/app/build.gradle
+          grep -q 'targetSdk 36' android/app/build.gradle
+          grep -q 'versionCode 11' android/app/build.gradle
+          grep -q "versionName '0.9.0'" android/app/build.gradle
+          grep -q 'NEST_RELEASE_KEYSTORE_PATH' android/app/build.gradle
+          grep -q 'NEST_RELEASE_CERT_SHA256' .github/workflows/release-v09.yml
+          grep -q 'environment: release' .github/workflows/release-v09.yml
+          grep -q 'maximum 20 registered devices' RELEASE_PLAN.md
+          grep -q 'v1.0.0 · Google Play' RELEASE_PLAN.md
+          grep -q '\*.p12' .gitignore
           grep -q 'PROTOCOL_VERSION = 3' android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java
           grep -q 'nest_local_identity_v1' android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java
           grep -q 'pair_request' android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java
@@ -52,30 +55,30 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK
+      - name: Install Android 16 SDK
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+          sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
 
-      - name: Gradle 8.9
+      - name: Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.11.1'
 
-      - name: Build APK
+      - name: Build unsigned CI APK
         working-directory: android
         env:
           NEST_GITHUB_CLIENT_ID: ${{ secrets.NEST_GITHUB_CLIENT_ID }}
           NEST_GITHUB_CLIENT_SECRET: ${{ secrets.NEST_GITHUB_CLIENT_SECRET }}
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.8.0-debug.apk
+      - name: Rename CI APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.9.0-ci-debug.apk
 
-      - name: Upload APK
+      - name: Upload CI APK
         uses: actions/upload-artifact@v4
         with:
-          name: NEST-Channel-Unified-APK
-          path: NEST-Channel-v0.8.0-debug.apk
+          name: NEST-Channel-v0.9.0-CI
+          path: NEST-Channel-v0.9.0-ci-debug.apk
           retention-days: 30
           if-no-files-found: error
