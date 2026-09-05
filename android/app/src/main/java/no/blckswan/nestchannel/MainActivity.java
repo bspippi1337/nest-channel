@@ -113,6 +113,9 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public String loadSecret(String key) {
+            if ("github_token".equals(key) && "local".equals(modePreferences.getString("mode", "github"))) {
+                return "";
+            }
             return secureStore.get(key);
         }
 
