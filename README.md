@@ -4,23 +4,21 @@
 
 NEST Channel er en Android-app for betinget oppgavebehandling i små team. I stedet for en flat to-do-liste viser appen hva som faktisk er **Klar**, hva som **Venter**, og hva som automatisk åpnes når en forutsetning blir **Ferdig**.
 
-Versjon **0.5.0** gjør synken sikrere og mer robust:
+Versjon **0.6.0 · UX Killer** flytter fokus fra konfigurasjon til arbeid:
 
-- GitHub-basert E2EE-synk over internett
-- sikker lokal P2P-synk med automatisk ECDH P-256 + AES-256-GCM
-- nulloppsett discovery på Wi-Fi/hotspot
-- valgfri manuell IP-fallback når multicast blokkeres
-- eksponentiell retry/backoff med jitter og støtte for GitHub `Retry-After`
-- feltvis konfliktfletting i stedet for hel-oppgave «siste skriv vinner»
-- automatiske tester av dørmodellen, syklusdeteksjon og konflikthåndtering
+- arbeidsbordet vises før synkinnstillinger
+- **Auto** kan kjøre sikker lokal P2P samtidig som GitHub er internettspor
+- kanaldata kan deles og fylles inn med en kompakt `NEST1`-invitasjonskode
+- oppgavefelt autosaves mens du skriver
+- valgt avhengighet legges til direkte
+- Enter sender oppgavekommentar
+- ferdigmarkering viser hvilke nye oppgaver som ble klare, med **Angre**
+- sletting varsler når den vil åpne ventende oppgaver, med **Angre**
+- mobilvisning får tydelige **Klar / Kanal**-faner og ulest-indikator
+- kompakte kontroller har større touch targets
+- Android Back lukker dialog, kanalvisning eller synkpanel før appen forlates
 
-Ingen root, Termux eller egen server er nødvendig.
-
-## Tegneserien på ett blikk
-
-<p align="center">
-  <img src="./nest-channel-comic.webp" alt="Tegneserie som forklarer betinget oppgavebehandling og hvordan NEST Channel viser Klar, Venter og Ferdig" width="800">
-</p>
+v0.6.0 bygger videre på sikkerhets- og konfliktarbeidet fra v0.5.0.
 
 ## Dørmodellen
 
@@ -34,43 +32,119 @@ Bestill reservedel → Monter reservedel → Test og lever
 
 NEST avviser sirkulære avhengigheter og lar hver oppgave ha ansvarlig person, etiketter, kommentarer og flere vilkår.
 
-## To synkveier i samme APK
+## Arbeidsbord først
 
-### Via GitHub
+Oppgaver kan opprettes og brukes lokalt uten at synk må konfigureres først. Synkinnstillinger ligger under et kompakt **Synk og sikkerhet**-panel under arbeidsflaten.
+
+På telefon er **Klar** den operative standardflaten. **Kanal** ligger én fane unna og viser ulest-indikator når nye meldinger kommer mens oppgavene er åpne.
+
+## Auto-synk
+
+v0.6.0 legger til **Auto** som anbefalt synkmodus.
+
+I Auto:
+
+1. lokal sikker P2P startes når Android-broen er tilgjengelig
+2. GitHub kan samtidig brukes som internettsynk når GitHub-kanalen allerede er konfigurert
+3. samme workspace flettes deterministisk via den eksisterende feltvise merge-modellen
+
+Manuell **Via GitHub** og **Lokalt · sikker P2P** beholdes for kontroll og feilsøking.
+
+## Rask invitasjon
+
+Når en GitHub-kanal har kanalnavn og kanalpassord, kan **Inviter** lage en kompakt kode på formen:
+
+```text
+NEST1....
+```
+
+Koden inneholder repo, kanalnavn og kanalpassord og kan fylles inn via **Bli med med kode** på en annen telefon.
+
+> En NEST1-kode er en hemmelig invitasjon fordi den inneholder kanalpassordet. Del den privat, på samme måte som du ville delt selve kanalpassordet. QR/deep-link-verifisert pairing er fortsatt et naturlig neste steg.
+
+## Tidsbesparende oppgaveflyt
+
+### Opprette
+
+Hurtigskjemaet oppretter oppgaven, nullstilles og sender fokus direkte tilbake til tittelfeltet.
+
+### Redigere
+
+Tittel, ansvarlig og etiketter autosaves med kort debounce mens oppgaven er åpen. **Lukk** erstatter behovet for å tenke på en separat lagreoperasjon.
+
+### Avhengigheter
+
+Velg en oppgave under **Blir klar når**. Valget legges inn direkte hvis det ikke lager en syklus.
+
+### Kommentarer
+
+Enter sender kommentar direkte.
+
+### Ferdig og nye dører
+
+Når en oppgave markeres som ferdig, sammenligner v0.6.0 Klar-settet før og etter endringen. Hvis andre oppgaver låses opp, vises det umiddelbart:
+
+```text
+Ferdig · 2 nye oppgaver ble klare: Monter del, Test system …
+```
+
+Handlingen kan angres fra toasten.
+
+### Trygg sletting
+
+Hvis sletting av en forutsetning vil gjøre ventende oppgaver klare, vises konsekvensen før sletting:
+
+```text
+Slett «Bestill delen»?
+
+Dette vil gjøre 2 oppgaver klare:
+• Monter delen
+• Test system
+```
+
+Sletting kan også angres etterpå.
+
+## Via GitHub
 
 GitHub-modus er for team som jobber på ulike nettverk eller steder. Telefonene krypterer arbeidskopien med AES-256-GCM før den publiseres som krypterte GitHub Issue-kommentarer. OAuth-token og kanalpassord lagres via Android Keystore.
 
-v0.5.0 gjør GitHub-synken mer robust:
+Synken har:
 
-- requests har timeout
-- polling bruker eksponentiell backoff etter feil
-- jitter reduserer samtidige reconnect-stormer
-- `Retry-After` og rate-limit reset respekteres
-- en mislykket publisering markeres ikke lenger som «allerede sendt»
-- midlertidige GitHub-feil sletter ikke et gyldig OAuth-token
+- request-timeout
+- eksponentiell retry/backoff
+- jitter
+- støtte for `Retry-After` og rate-limit reset
+- trygg retry av mislykket publisering
+- feltvis konfliktfletting
 
-### Lokalt · sikker P2P
+### OAuth-status
 
-Standardopplevelsen er fortsatt null oppsett:
+v0.6.0 fjerner ikke behovet for GitHub OAuth App-konfigurasjon. Første GitHub-oppsett bruker fortsatt Device Flow og krever en gyldig OAuth Client ID.
+
+Å bake inn en ekte registrert appidentitet og eventuelt gå til Authorization Code + PKCE krever at NESTs GitHub OAuth App faktisk registreres med riktige callback-/appdata. Repoet hardkoder derfor ikke en oppdiktet Client ID.
+
+## Lokalt · sikker P2P
+
+Standard lokal flyt:
 
 1. Koble telefonene til samme Wi-Fi eller hotspot.
 2. Åpne NEST Channel.
-3. Velg **Lokalt · sikker P2P**.
+3. Bruk **Auto** eller **Lokalt · sikker P2P**.
 4. Telefonene finner hverandre automatisk.
 
 Discovery bruker UDP multicast/broadcast. Når to NEST-telefoner finner hverandre, utveksler de midlertidige EC-public keys og etablerer en parvis ECDH-hemmelighet. Arbeidsdata komprimeres og krypteres med **AES-256-GCM** før de sendes direkte til peerens IP-adresse.
 
-Hvis nettverket blokkerer multicast, finnes **Avansert fallback · koble til IP manuelt**. Den endrer ikke krypteringen, den erstatter bare discovery-steget.
+Hvis nettverket blokkerer multicast, finnes manuell IP-fallback i lokalmodus.
 
 ### Lokal sikkerhetsmodell
 
-Lokal v0.5.0 beskytter arbeidsinnhold mot passiv avlytting på nettverket. Discovery-metadata som node-ID, enhetsnavn, IP og offentlig ECDH-nøkkel er ikke hemmelig.
+Lokal v0.6.0 beskytter arbeidsinnhold mot passiv avlytting på nettverket. Discovery-metadata som node-ID, enhetsnavn, IP og offentlig ECDH-nøkkel er ikke hemmelig.
 
-Den automatiske håndhilsenen har foreløpig **ingen menneskeverifisert peer-identitet**. Det betyr at en aktiv angriper på samme nettverk i teorien kan forsøke en man-in-the-middle-posisjon under første nøkkelutveksling. QR-/kodeverifisert pairing er et naturlig neste sikkerhetssteg.
+Den automatiske håndhilsenen har fortsatt **ingen menneskeverifisert peer-identitet**. En aktiv angriper på samme nettverk kan derfor i teorien forsøke en man-in-the-middle-posisjon under første nøkkelutveksling. QR-/kodeverifisert nøkkelverifikasjon bør komme før lokalmodus markedsføres som menneskeverifisert pairing.
 
 ## Feltvis konflikthåndtering
 
-Fra v0.5.0 har hvert redigerbart oppgavefelt sin egen tidsmarkør:
+Hvert redigerbart oppgavefelt har egen tidsmarkør:
 
 - tittel
 - ansvarlig
@@ -79,53 +153,38 @@ Fra v0.5.0 har hvert redigerbart oppgavefelt sin egen tidsmarkør:
 - etiketter
 - avhengigheter
 
-Hvis telefon A endrer tittelen mens telefon B endrer ansvarlig, kan begge endringene overleve samme merge. Kommentarer flettes separat etter ID. Eldre v0.4.x-data migreres automatisk ved å bruke oppgavens eksisterende `updatedAt` som første feltklokke.
+Hvis telefon A endrer tittelen mens telefon B endrer ansvarlig, kan begge endringene overleve samme merge. Kommentarer flettes separat etter ID.
 
-## Hurtigstart GitHub
-
-1. Opprett en GitHub OAuth App.
-2. Aktiver **Device Flow**.
-3. Lim Client ID inn i appen.
-4. Logg inn.
-5. Angi repo, kanalnavn, kallenavn og kanalpassord.
-6. Bruk samme kanaldata på de andre telefonene.
-
-Ingen client secret skal bygges inn i APK-en.
-
-## Sikkerhetsoversikt
-
-| Område | GitHub-modus | Lokalmodus v0.5.0 |
-|---|---|---|
-| Transport | GitHub API | Direkte UDP unicast etter discovery |
-| Rekkevidde | Internett | Samme rutbare lokalnett/hotspot |
-| Kryptering | AES-256-GCM | ECDH P-256 + AES-256-GCM |
-| Konto | GitHub OAuth | Ingen |
-| Kanalpassord | Ja | Nei |
-| Discovery | GitHub repo/Issue | Multicast/broadcast eller manuell IP |
-| Ekstern server | GitHub | Ingen |
-| Peer-identitet | GitHub-konto + kanalpassord | Automatisk nøkkelutveksling, ikke menneskeverifisert ennå |
+Feltklokkene bruker fortsatt ISO wall-clock-tid i v0.6.0. Hybrid Logical Clock eller Lamport-klokke er planlagt som en senere robusthetsforbedring mot enheter med skjev systemklokke.
 
 ## Tester og CI
 
-`npm run check` kjører både JavaScript-syntakssjekk og Node-testene i `tests/core.test.js`.
+`npm run check` kjører:
 
-Testene dekker blant annet:
+- JavaScript-syntakssjekk, inkludert `ux-v06.js`
+- Node-testene i `tests/*.test.js`
+
+Kjernetestene dekker blant annet:
 
 - A → B → C åpnes i riktig rekkefølge
 - direkte og transitive dependency-sykluser avvises
 - samtidige endringer i ulike felt bevares
 - kommentarer flettes uavhengig
-- nyere slettemarkør kan vinnes uten å overskrive en nyere tittel
+- nyere slettemarkør kan vinne uten å overskrive en nyere tittel
 
-GitHub Actions bygger Android-APK-en etter at kjernetestene er grønne.
+GitHub Actions bygger Android-APK-en etter at sjekkene er grønne.
 
-## Begrensninger i v0.5.0
+## Begrensninger i v0.6.0
 
-- Appen må foreløpig være åpen for kontinuerlig lokal synk.
-- Klientisolasjon kan blokkere direkte UDP selv med korrekt IP.
-- Lokal kryptering autentiserer ikke fysisk hvem peer-en er ennå.
-- GitHub-synk er polling, ikke ekte realtime push.
-- APK-en er fortsatt debug-signert.
+- GitHub-synk er fortsatt polling, ikke ekte push.
+- GitHub bootstrap leser fortsatt historiske sync-kommentarer; checkpoint/latest-snapshot-bootstrap er neste ytelsessteg.
+- GitHub OAuth bruker fortsatt Device Flow og brukerlevert Client ID.
+- `NEST1` er en delingskode, ikke QR eller menneskeverifisert kryptografisk pairing.
+- lokal kontinuerlig synk krever fortsatt at appen er åpen
+- klientisolasjon kan blokkere direkte UDP
+- lokal peer-identitet er ikke menneskeverifisert ennå
+- feltkonflikter bruker fortsatt veggklokke
+- APK-en er fortsatt debug-signert
 
 ## Bygg lokalt
 
@@ -139,20 +198,34 @@ cd android
 gradle --no-daemon :app:assembleDebug
 ```
 
-APK-en bygges til `android/app/build/outputs/apk/debug/app-debug.apk`.
+APK-en bygges til:
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
 
 ## Prosjektstatus
 
-**v0.5.0 · Secure Local Sync + Resilient Sync**
+**v0.6.0 · UX Killer**
 
+- dørmodell: implementert
+- arbeidsbord først: implementert
+- Auto-synk: implementert
+- rask NEST1-kanalinvitasjon: implementert
+- autosave: implementert
+- unlock-feedback + Angre: implementert
+- trygg sletting + Angre: implementert
+- mobil Klar/Kanal-nav: implementert
+- større touch targets: implementert
+- Android Back-håndtering: implementert
 - GitHub E2EE: implementert
-- GitHub retry/backoff: implementert
 - lokal ECDH + AES-256-GCM: implementert
-- automatisk discovery: implementert
-- manuell IP-fallback: implementert
 - feltvis konfliktfletting: implementert
-- kjerne-/dørmodelltester: implementert
-- fysisk flertelefonstest av v0.5.0: må verifiseres på ekte enheter
+- PKCE/registrert appidentitet: gjenstår
+- QR-verifisert pairing: gjenstår
+- latest-snapshot GitHub bootstrap: gjenstår
+- logisk konfliktklokke: gjenstår
+- fysisk flertelefonstest av v0.6.0: må verifiseres på ekte enheter
 
 ---
 
