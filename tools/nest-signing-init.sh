@@ -14,19 +14,18 @@ fail() { printf '\n[NEST 0.9] ERROR: %s\n' "$*" >&2; exit 1; }
 
 install_termux_deps() {
   command -v pkg >/dev/null 2>&1 || return 0
-  local missing=0
-  command -v keytool >/dev/null 2>&1 || missing=1
-  command -v gh >/dev/null 2>&1 || missing=1
-  command -v openssl >/dev/null 2>&1 || missing=1
-  if [ "$missing" -eq 1 ]; then
-    say "Installerer Termux-avhengigheter (OpenJDK 17, gh, OpenSSL)"
-    pkg install -y openjdk-17 gh openssl coreutils
+  local packages=()
+  command -v gh >/dev/null 2>&1 || packages+=(gh)
+  command -v openssl >/dev/null 2>&1 || packages+=(openssl)
+  command -v base64 >/dev/null 2>&1 || packages+=(coreutils)
+  if [ "${#packages[@]}" -gt 0 ]; then
+    say "Installerer Termux-avhengigheter: ${packages[*]}"
+    pkg install -y "${packages[@]}"
   fi
 }
 
 install_termux_deps
-command -v keytool >/dev/null 2>&1 || fail "keytool mangler (installer Java 17)."
-command -v gh >/dev/null 2>&1 || fail "GitHub CLI mangler."
+command -v gh >/dev/null 2>&1 || fail "GitHub CLI (gh) mangler."
 command -v openssl >/dev/null 2>&1 || fail "OpenSSL mangler."
 command -v base64 >/dev/null 2>&1 || fail "base64 mangler."
 
@@ -38,30 +37,42 @@ if [ -e "$KEYSTORE" ]; then
 fi
 
 PASSWORD="$(openssl rand -hex 32)"
+TMP_PRIVATE="$KEY_DIR/.nest-app-signing-v1-private.pem.$$"
+trap 'rm -f "$TMP_PRIVATE"' EXIT HUP INT TERM
+umask 077
 
-say "Genererer langsiktig NEST app-signing key lokalt"
-keytool -genkeypair \
-  -noprompt \
-  -alias "$ALIAS" \
-  -keyalg RSA \
-  -keysize 4096 \
-  -sigalg SHA256withRSA \
-  -validity 10000 \
-  -storetype PKCS12 \
-  -keystore "$KEYSTORE" \
-  -storepass "$PASSWORD" \
-  -keypass "$PASSWORD" \
-  -dname "CN=NEST Channel, OU=Release, O=BLCKSWAN, C=NO"
+say "Genererer langsiktig NEST app-signing key lokalt med OpenSSL"
+openssl genpkey \
+  -algorithm RSA \
+  -aes-256-cbc \
+  -pass "pass:$PASSWORD" \
+  -pkeyopt rsa_keygen_bits:4096 \
+  -out "$TMP_PRIVATE" >/dev/null 2>&1
+
+openssl req \
+  -new -x509 \
+  -key "$TMP_PRIVATE" \
+  -passin "pass:$PASSWORD" \
+  -sha256 \
+  -days 10000 \
+  -subj "/C=NO/O=BLCKSWAN/OU=Release/CN=NEST Channel" \
+  -out "$CERT"
+
+openssl pkcs12 \
+  -export \
+  -inkey "$TMP_PRIVATE" \
+  -passin "pass:$PASSWORD" \
+  -in "$CERT" \
+  -name "$ALIAS" \
+  -passout "pass:$PASSWORD" \
+  -out "$KEYSTORE"
+
+rm -f "$TMP_PRIVATE"
+trap - EXIT HUP INT TERM
 chmod 600 "$KEYSTORE"
-
-keytool -exportcert -rfc \
-  -alias "$ALIAS" \
-  -keystore "$KEYSTORE" \
-  -storepass "$PASSWORD" \
-  -file "$CERT" >/dev/null
 chmod 644 "$CERT"
 
-FINGERPRINT="$(keytool -list -v -alias "$ALIAS" -keystore "$KEYSTORE" -storepass "$PASSWORD" 2>/dev/null | awk -F': ' '/SHA256:/{print $2; exit}')"
+FINGERPRINT="$(openssl x509 -in "$CERT" -noout -fingerprint -sha256 | sed 's/^.*=//')"
 [ -n "$FINGERPRINT" ] || fail "Kunne ikke lese SHA-256-fingeravtrykket."
 
 umask 077
