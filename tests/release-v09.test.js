@@ -20,7 +20,10 @@ test("signed release is gated by protected environment secrets", () => {
   assert.match(workflow, /environment: release/);
   assert.match(workflow, /NEST_RELEASE_KEYSTORE_B64/);
   assert.match(workflow, /NEST_RELEASE_CERT_SHA256/);
-  assert.match(workflow, /Signing certificate mismatch/);
+  assert.match(workflow, /APK signing certificate mismatch/);
+  assert.match(workflow, /AAB signing certificate mismatch/);
+  assert.match(workflow, /jarsigner -verify/);
+  assert.match(workflow, /keytool .* -printcert -jarfile/);
   assert.match(workflow, /assembleRelease :app:bundleRelease/);
 });
 
