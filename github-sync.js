@@ -11,6 +11,7 @@
   const BACKOFF_START_MS = 3000;
   const BACKOFF_MAX_MS = 60000;
   const REQUEST_TIMEOUT_MS = 20000;
+  const SNAPSHOT_PAGE_LIMIT = 10;
 
   const ui = {
     clientId: document.getElementById("githubClientId"),
@@ -58,6 +59,20 @@
     catch {}
   }
 
+  function bundledClientId() {
+    try { return nativeAvailable() ? String(window.NativeHost.getBundledGitHubClientId?.() || "") : ""; }
+    catch { return ""; }
+  }
+
+  function authMode() {
+    try { return nativeAvailable() ? String(window.NativeHost.getGitHubAuthMode?.() || "device") : "device"; }
+    catch { return "device"; }
+  }
+
+  function resolveClientId() {
+    return bundledClientId() || ui.clientId?.value.trim() || secretLoad("github_client_id") || localStorage.getItem(CLIENT_ID_KEY) || "";
+  }
+
   function setAuthUi() {
     if (token && githubLogin) {
       ui.user.textContent = `@${githubLogin}`;
@@ -70,7 +85,9 @@
       ui.user.classList.remove("online");
       ui.login.hidden = false;
       ui.logout.hidden = true;
-      ui.setup.hidden = false;
+      const bundled = Boolean(bundledClientId());
+      ui.setup.hidden = bundled;
+      if (bundled) ui.login.title = "Sikker GitHub Authorization Code + PKCE";
     }
   }
 
@@ -151,18 +168,37 @@
     }
   }
 
-  function beginLogin() {
+  function beginDeviceLogin(clientId) {
     if (!nativeAvailable() || typeof window.NativeHost.requestGitHubDeviceCode !== "function") {
-      alert("OAuth-innlogging krever Android-APK-en.");
+      alert("GitHub-innlogging krever Android-APK-en.");
       return;
     }
-    const clientId = ui.clientId.value.trim();
     if (!clientId) return alert("Lim inn OAuth-appens Client ID først.");
     localStorage.setItem(CLIENT_ID_KEY, clientId);
     secretSave("github_client_id", clientId);
     ui.login.disabled = true;
     ui.login.textContent = "Starter GitHub …";
     window.NativeHost.requestGitHubDeviceCode(clientId);
+  }
+
+  function beginLogin() {
+    if (!nativeAvailable()) return alert("GitHub-innlogging krever Android-APK-en.");
+    ui.login.disabled = true;
+    ui.login.textContent = "Starter GitHub …";
+    if (authMode() === "pkce" && typeof window.NativeHost.startGitHubPkce === "function") {
+      try {
+        window.NativeHost.startGitHubPkce();
+        return;
+      } catch (error) {
+        ui.login.disabled = false;
+        ui.login.textContent = "Logg inn med GitHub";
+        alert(`Kunne ikke starte PKCE: ${error?.message || error}`);
+        return;
+      }
+    }
+    ui.login.disabled = false;
+    ui.login.textContent = "Logg inn med GitHub";
+    beginDeviceLogin(resolveClientId());
   }
 
   function scheduleTokenPoll(delaySeconds) {
@@ -173,7 +209,28 @@
     }, Math.max(5, delaySeconds) * 1000);
   }
 
+  async function acceptTokenResponse(raw) {
+    let response;
+    try { response = JSON.parse(raw); } catch { response = { error: "Ugyldig svar" }; }
+    if (!response.access_token) throw new Error(response.error_description || response.error || "GitHub returnerte ikke access token");
+    token = response.access_token;
+    secretSave("github_token", token);
+    ui.devicePanel.hidden = true;
+    await verifyToken();
+    maybeAutoConnect();
+  }
+
   window.NestGitHubAuth = {
+    onPkceStarted() {
+      ui.login.disabled = true;
+      ui.login.textContent = "Venter på GitHub …";
+    },
+    async onPkceToken(raw) {
+      ui.login.disabled = false;
+      ui.login.textContent = "Logg inn med GitHub";
+      try { await acceptTokenResponse(raw); }
+      catch (error) { alert(`GitHub-innlogging feilet: ${error.message}`); }
+    },
     onDeviceCode(raw) {
       ui.login.disabled = false;
       ui.login.textContent = "Logg inn med GitHub";
@@ -184,7 +241,7 @@
         return;
       }
       deviceFlow = {
-        clientId: ui.clientId.value.trim(),
+        clientId: resolveClientId(),
         deviceCode: response.device_code,
         userCode: response.user_code,
         verificationUri: response.verification_uri || "https://github.com/login/device",
@@ -198,19 +255,15 @@
       try { window.NativeHost.openExternalUrl(deviceFlow.verificationUri); } catch {}
       scheduleTokenPoll(deviceFlow.interval);
     },
-
     async onDeviceToken(raw) {
       if (!deviceFlow) return;
       let response;
       try { response = JSON.parse(raw); } catch { response = { error: "Ugyldig svar" }; }
       if (response.access_token) {
-        token = response.access_token;
-        secretSave("github_token", token);
         clearTimeout(deviceFlow.timer);
         deviceFlow = null;
-        ui.devicePanel.hidden = true;
-        await verifyToken();
-        maybeAutoConnect();
+        try { await acceptTokenResponse(raw); }
+        catch (error) { alert(`GitHub-innlogging feilet: ${error.message}`); }
         return;
       }
       if (Date.now() >= deviceFlow.expiresAt || response.error === "expired_token") {
@@ -225,7 +278,6 @@
       }
       scheduleTokenPoll(deviceFlow.interval);
     },
-
     onNativeError(message) {
       ui.login.disabled = false;
       ui.login.textContent = "Logg inn med GitHub";
@@ -240,9 +292,7 @@
     return { owner, repo };
   }
 
-  function roomMarker() {
-    return `<!-- NEST-ROOM:${roomId} -->`;
-  }
+  function roomMarker() { return `<!-- NEST-ROOM:${roomId} -->`; }
 
   async function findOrCreateIssue() {
     const cacheKey = `${ISSUE_KEY_PREFIX}${repoOwner}/${repoName}:${roomId}`;
@@ -253,21 +303,16 @@
         if (issue?.state === "open" && String(issue.body || "").includes(roomMarker())) return cached;
       } catch {}
     }
-
     const issues = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues?state=open&per_page=100&sort=updated&direction=desc`);
     const found = issues.find(issue => !issue.pull_request && String(issue.body || "").includes(roomMarker()));
     if (found) {
       localStorage.setItem(cacheKey, String(found.number));
       return found.number;
     }
-
     const created = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: `[NEST SYNC] ${roomId.slice(0, 12)}`,
-        body: `${roomMarker()}\n\nKryptert NEST Channel-synk. Innholdet kan bare åpnes med kanalpassordet i appen.`
-      })
+      body: JSON.stringify({ title: `[NEST SYNC] ${roomId.slice(0, 12)}`, body: `${roomMarker()}\n\nKryptert NEST Channel-synk. Innholdet kan bare åpnes med kanalpassordet i appen.` })
     });
     localStorage.setItem(cacheKey, String(created.number));
     return created.number;
@@ -277,9 +322,25 @@
     if (typeof body !== "string" || !body.startsWith(COMMENT_MARKER)) return null;
     try {
       const item = JSON.parse(body.slice(COMMENT_MARKER.length).trim());
-      if (item.v !== 1 || item.room !== roomId || !item.id || !item.data || !item.iv) return null;
+      if (![1, 2].includes(Number(item.v)) || item.room !== roomId || !item.id || !item.data || !item.iv) return null;
       return item;
     } catch { return null; }
+  }
+
+  function commentChunk(comment) {
+    const chunk = parseEncryptedComment(comment?.body);
+    if (!chunk) return null;
+    return { ...chunk, commentId: comment.id, createdAt: String(comment.created_at || comment.updated_at || "") };
+  }
+
+  async function receiveCompleteEnvelope(group) {
+    try {
+      const payload = await decryptEnvelope({ id: group.id, iv: group.iv, data: group.data });
+      if (payload.kind !== "workspace") return false;
+      mergeWorkspace(payload.workspace);
+      for (const id of group.commentIds || []) seenCommentIds.add(id);
+      return true;
+    } catch { return false; }
   }
 
   async function receiveComment(comment) {
@@ -287,21 +348,18 @@
     seenCommentIds.add(comment.id);
     const chunk = parseEncryptedComment(comment.body);
     if (!chunk) return;
-
-    const group = chunkGroups.get(chunk.id) || {
-      total: Number(chunk.total) || 1,
-      iv: chunk.iv,
-      parts: [],
-      received: 0
-    };
+    const group = chunkGroups.get(chunk.id) || { total: Number(chunk.total) || 1, iv: chunk.iv, parts: [], received: 0 };
     const index = Math.max(0, Number(chunk.part || 1) - 1);
+    if (group.total !== (Number(chunk.total) || 1) || group.iv !== chunk.iv) {
+      chunkGroups.delete(chunk.id);
+      return;
+    }
     if (group.parts[index] === undefined) {
       group.parts[index] = chunk.data;
       group.received++;
     }
     chunkGroups.set(chunk.id, group);
     if (group.received < group.total) return;
-
     chunkGroups.delete(chunk.id);
     try {
       const payload = await decryptEnvelope({ id: chunk.id, iv: group.iv, data: group.parts.join("") });
@@ -311,15 +369,38 @@
     }
   }
 
-  async function fetchAllComments() {
-    let page = 1;
-    while (true) {
-      const comments = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments?per_page=100&page=${page}&sort=created&direction=asc`);
-      for (const comment of comments) await receiveComment(comment);
-      if (comments.length < 100) break;
-      page++;
+  async function fetchLatestSnapshot() {
+    const issue = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}`);
+    const commentCount = Math.max(0, Number(issue?.comments) || 0);
+    if (!commentCount) {
+      lastPollAt = new Date(Date.now() - 1000).toISOString();
+      return false;
     }
-    lastPollAt = new Date(Date.now() - 1000).toISOString();
+    const chunks = [];
+    let newestSeenAt = "";
+    let page = Math.max(1, Math.ceil(commentCount / 100));
+    let pagesRead = 0;
+    while (page >= 1 && pagesRead < SNAPSHOT_PAGE_LIMIT) {
+      const comments = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments?per_page=100&page=${page}`);
+      pagesRead++;
+      for (const comment of comments) {
+        seenCommentIds.add(comment.id);
+        const stamp = String(comment.created_at || comment.updated_at || "");
+        if (stamp > newestSeenAt) newestSeenAt = stamp;
+        const chunk = commentChunk(comment);
+        if (chunk) chunks.push(chunk);
+      }
+      const groups = window.NESTCore.completeEnvelopeGroups(chunks);
+      for (const group of groups) {
+        if (await receiveCompleteEnvelope(group)) {
+          const anchor = newestSeenAt ? Date.parse(newestSeenAt) : Date.now();
+          lastPollAt = new Date((Number.isFinite(anchor) ? anchor : Date.now()) - 1000).toISOString();
+          return true;
+        }
+      }
+      page--;
+    }
+    throw new Error(`Kanalhistorikk finnes (${commentCount} kommentarer), men ingen komplett dekrypterbar snapshot ble funnet i de siste ${pagesRead * 100}. Kontroller kanalpassordet eller reparer synkhistorikken før du publiserer.`);
   }
 
   async function pollComments() {
@@ -327,9 +408,15 @@
     let delay = POLL_MS;
     try {
       const since = lastPollAt ? `&since=${encodeURIComponent(lastPollAt)}` : "";
-      const comments = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments?per_page=100&sort=created&direction=asc${since}`);
-      lastPollAt = new Date(Date.now() - 1000).toISOString();
-      for (const comment of comments) await receiveComment(comment);
+      const comments = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments?per_page=100${since}`);
+      let newest = lastPollAt;
+      for (const comment of comments) {
+        const stamp = String(comment.created_at || comment.updated_at || "");
+        if (stamp > newest) newest = stamp;
+        await receiveComment(comment);
+      }
+      const anchor = newest ? Date.parse(newest) : Date.now();
+      lastPollAt = new Date((Number.isFinite(anchor) ? anchor : Date.now()) - 1000).toISOString();
       pollFailures = 0;
       setConnectionState("online", "GitHub-synk aktiv");
     } catch (error) {
@@ -351,21 +438,14 @@
     if (!window.NEST_GITHUB_CONNECTED) return;
     const digest = await digestWorkspace();
     if (!force && digest === lastSentDigest) return;
-
     const encrypted = await encryptPayload({ kind: "workspace", workspace });
     const total = Math.max(1, Math.ceil(encrypted.data.length / MAX_CHUNK));
     const envelopeId = crypto.randomUUID();
     for (let index = 0; index < total; index++) {
       const body = COMMENT_MARKER + "\n" + JSON.stringify({
-        v: 1,
-        room: roomId,
-        id: envelopeId,
-        part: index + 1,
-        total,
-        iv: encrypted.iv,
-        data: encrypted.data.slice(index * MAX_CHUNK, (index + 1) * MAX_CHUNK),
-        sentAt: new Date().toISOString(),
-        clientId
+        v: 2, kind: "snapshot", room: roomId, id: envelopeId, part: index + 1, total,
+        iv: encrypted.iv, data: encrypted.data.slice(index * MAX_CHUNK, (index + 1) * MAX_CHUNK),
+        sentAt: new Date().toISOString(), clientId
       });
       await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments`, {
         method: "POST",
@@ -406,7 +486,6 @@
     if (!channel) return alert("Skriv et kanalnavn.");
     if (!nickname) return alert("Skriv et kallenavn.");
     if (password.length < 8) return alert("Kanalpassordet må ha minst 8 tegn.");
-
     let parsed;
     try { parsed = parseRepo(el.relayUrl.value || "bspippi1337/nest-channel"); }
     catch (error) { return alert(error.message); }
@@ -418,7 +497,6 @@
     el.channelPassword.value = password;
     el.connectButton.disabled = true;
     setConnectionState("connecting", "Finner kryptert GitHub-kanal …");
-
     try {
       await prepareRoom(channel, password);
       issueNumber = await findOrCreateIssue();
@@ -430,9 +508,9 @@
       el.chatForm.querySelector("button").disabled = false;
       el.channelHeading.textContent = `#${channel}`;
       el.peerCount.textContent = `GitHub #${issueNumber}`;
-      await fetchAllComments();
+      const bootstrapped = await fetchLatestSnapshot();
       await publishWorkspace({ force: true });
-      setConnectionState("online", "GitHub-synk aktiv");
+      setConnectionState("online", bootstrapped ? "GitHub-synk aktiv · siste snapshot lastet" : "GitHub-synk aktiv · ny kanal");
       pollComments();
     } catch (error) {
       window.NEST_GITHUB_CONNECTED = false;
@@ -488,10 +566,25 @@
   el.disconnectButton.addEventListener("click", disconnectGithub);
   window.addEventListener("nest:workspace-changed", queuePublish);
 
-  const storedClientId = secretLoad("github_client_id") || localStorage.getItem(CLIENT_ID_KEY) || "";
+  const storedClientId = bundledClientId() || secretLoad("github_client_id") || localStorage.getItem(CLIENT_ID_KEY) || "";
   ui.clientId.value = storedClientId;
   token = secretLoad("github_token");
   if (!el.relayUrl.value.trim()) el.relayUrl.value = "bspippi1337/nest-channel";
   setAuthUi();
   verifyToken().then(maybeAutoConnect);
+
+  function loadSecurityV07() {
+    if (!document.querySelector('link[href="security-v07.css"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "security-v07.css";
+      document.head.append(link);
+    }
+    if (!document.querySelector('script[src="security-v07.js"]')) {
+      const script = document.createElement("script");
+      script.src = "security-v07.js";
+      document.head.append(script);
+    }
+  }
+  loadSecurityV07();
 })();
