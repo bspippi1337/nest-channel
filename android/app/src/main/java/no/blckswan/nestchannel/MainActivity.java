@@ -177,9 +177,6 @@ public final class MainActivity extends Activity {
     private final class LocalBridge {
         @JavascriptInterface
         public void start() {
-            if (!"local".equals(modePreferences.getString("mode", "github"))) {
-                modePreferences.edit().putString("mode", "local").apply();
-            }
             localSyncManager.start();
         }
 
@@ -267,10 +264,24 @@ public final class MainActivity extends Activity {
         super.onSaveInstanceState(outState);
     }
 
+    private void performDefaultBack() {
+        if (webView != null && webView.canGoBack()) webView.goBack();
+        else super.onBackPressed();
+    }
+
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        if (webView == null) {
+            super.onBackPressed();
+            return;
+        }
+
+        webView.evaluateJavascript(
+                "(window.NESTBack&&window.NESTBack.handle&&window.NESTBack.handle())?'handled':'pass'",
+                result -> {
+                    if ("\"handled\"".equals(result)) return;
+                    performDefaultBack();
+                });
     }
 
     @Override

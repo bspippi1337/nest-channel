@@ -1,5 +1,5 @@
-const CACHE = "nest-channel-v6";
-const ASSETS = ["./", "./index.html", "./storage-sandbox.js", "./nest-core.js", "./app.js", "./styles.css", "./github-sync.js", "./github-sync.css", "./about.js", "./about.css", "./manifest.webmanifest", "./icon.svg", "./nest-channel-comic.webp"];
+const CACHE = "nest-channel-v7";
+const ASSETS = ["./", "./index.html", "./storage-sandbox.js", "./nest-core.js", "./app.js", "./styles.css", "./github-sync.js", "./github-sync.css", "./about.js", "./about.css", "./ux-v06.js", "./ux-v06.css", "./manifest.webmanifest", "./icon.svg", "./nest-channel-comic.webp"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
