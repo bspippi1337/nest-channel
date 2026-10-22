@@ -257,6 +257,7 @@
   function render() {
     const body = byId("nestOnboardBody");
     if (!body) return;
+    body.scrollTop = 0; // Each new step must start at the top of its own scroll area.
     setProgress(Math.min(state.step, 4));
 
     if (state.step === 0) {
