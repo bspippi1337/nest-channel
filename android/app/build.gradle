@@ -68,7 +68,7 @@ def syncWebAssets = tasks.register('syncWebAssets', Copy) {
         include 'index.html', 'storage-sandbox.js', 'nest-core.js', 'app.js', 'styles.css', 'manifest.webmanifest',
                 'icon.svg', 'nest-channel-comic.webp', 'service-worker.js', 'github-sync.js', 'github-sync.css',
                 'about.js', 'about.css', 'ux-v06.js', 'ux-v06.css', 'security-v07.js', 'security-v07.css',
-                'onboarding-v08.js', 'onboarding-v08.css', 'release-v09.js'
+                'onboarding-v08.js', 'onboarding-v08.css', 'release-v09.js', 'nest-shell.js', 'nest-shell.css'
     }
     into(layout.projectDirectory.dir('src/main/assets'))
 }
