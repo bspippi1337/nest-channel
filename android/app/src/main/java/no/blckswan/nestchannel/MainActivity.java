@@ -1,8 +1,10 @@
 package no.blckswan.nestchannel;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -10,6 +12,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -58,6 +62,9 @@ public final class MainActivity extends Activity {
     private SharedPreferences modePreferences;
     private LocalSyncManager localSyncManager;
     private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
+    private static final int MICROPHONE_PERMISSION_REQUEST = 7911;
+    private PermissionRequest pendingMicRequest;
+    private boolean scanningNestInvite = false;
     private volatile boolean pageReady = false;
     private volatile String pendingPkceResult = "";
 
@@ -107,6 +114,37 @@ public final class MainActivity extends Activity {
         settings.setSafeBrowsingEnabled(true);
         settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.7");
 
+        // Only bundled app-origin code may ever obtain access to native credentials.
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    Uri origin = request.getOrigin();
+                    if (!"https".equalsIgnoreCase(origin.getScheme())
+                            || !"appassets.androidplatform.net".equalsIgnoreCase(origin.getHost())) {
+                        request.deny();
+                        return;
+                    }
+                    for (String resource : request.getResources()) {
+                        if (!PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                            request.deny();
+                            return;
+                        }
+                    }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    } else {
+                        pendingMicRequest = request;
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MICROPHONE_PERMISSION_REQUEST);
+                    }
+                });
+            }
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                if (pendingMicRequest == request) pendingMicRequest = null;
+            }
+        });
+
         webView.addJavascriptInterface(new NativeBridge(), "NativeHost");
         webView.addJavascriptInterface(new LocalBridge(), "NativeLocal");
 
@@ -115,6 +153,15 @@ public final class MainActivity extends Activity {
                 .build();
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                boolean bundled = "https".equalsIgnoreCase(uri.getScheme())
+                        && "appassets.androidplatform.net".equalsIgnoreCase(uri.getHost())
+                        && String.valueOf(uri.getPath()).startsWith("/assets/");
+                // Do not allow a navigated remote page to obtain the NativeHost JS bridge.
+                return !bundled;
+            }
             @Nullable
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -205,6 +252,27 @@ public final class MainActivity extends Activity {
                 if (!"https".equalsIgnoreCase(uri.getScheme())) return;
                 startActivity(new Intent(Intent.ACTION_VIEW, uri));
             } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public String makeQrCode(String value) {
+            try {
+                if (value == null || !value.startsWith("NESTINV1.") || value.length() > 1200) return "";
+                return qrDataUri(value);
+            } catch (Exception ignored) { return ""; }
+        }
+
+        @JavascriptInterface
+        public void scanInviteQr() {
+            runOnUiThread(() -> {
+                scanningNestInvite = true;
+                new IntentIntegrator(MainActivity.this)
+                        .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+                        .setPrompt("Skann NEST 0.9.1-invitasjonen fra telefon A")
+                        .setBeepEnabled(false)
+                        .setOrientationLocked(false)
+                        .initiateScan();
+            });
         }
 
         @JavascriptInterface
@@ -335,9 +403,27 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != MICROPHONE_PERMISSION_REQUEST) return;
+        PermissionRequest request = pendingMicRequest;
+        pendingMicRequest = null;
+        if (request == null) return;
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+            request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+        else request.deny();
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
         if (result != null) {
+            if (scanningNestInvite) {
+                scanningNestInvite = false;
+                if (result.getContents() != null)
+                    callJavaScript("window.NestWizard091&&window.NestWizard091.onScan(" + JSONObject.quote(result.getContents()) + ")");
+                return;
+            }
             if (result.getContents() == null) {
                 callJavaScript("window.NestLocalPairing&&window.NestLocalPairing.onScanCanceled&&window.NestLocalPairing.onScanCanceled()");
             } else {
