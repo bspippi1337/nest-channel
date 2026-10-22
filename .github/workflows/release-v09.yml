@@ -54,12 +54,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
       - name: Install Android 16 SDK
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -x "$SDKMANAGER" || { echo "Android SDK command line tools are unavailable" >&2; exit 1; }
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
