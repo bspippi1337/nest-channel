@@ -103,8 +103,23 @@
   function attachControl(channel) {
     dc = channel;
     dc.onmessage = event => {
-      if (event.data === "talk:start") { otherTalking = true; mute(); status("Motparten snakker"); }
-      else if (event.data === "talk:stop") { otherTalking = false; status("Klar · hold inne for å snakke"); }
+      if (event.data === "talk:start") {
+        // Deterministic collision policy avoids both radios muting forever.
+        if (talk && peerId < remoteId) {
+          if (dc.readyState === "open") dc.send("talk:busy");
+          return;
+        }
+        if (talk) endTalk();
+        otherTalking = true;
+        status("Motparten snakker");
+      } else if (event.data === "talk:busy") {
+        if (talk) endTalk();
+        otherTalking = true;
+        status("Motparten har taleretten");
+      } else if (event.data === "talk:stop") {
+        otherTalking = false;
+        if (!talk) status("Klar · hold inne for å snakke");
+      }
     };
     dc.onopen = () => status("Direkte forbindelse · hold inne for å snakke");
   }
@@ -214,7 +229,7 @@
     pttButton?.setAttribute("aria-pressed", "false");
   }
   function startTalk() {
-    if (!active || otherTalking || !pc || pc.connectionState !== "connected" || !soundReady()) return;
+    if (!active || otherTalking || !pc || pc.connectionState !== "connected" || dc?.readyState !== "open" || !soundReady()) return;
     talk = true;
     stream.getAudioTracks().forEach(track => { track.enabled = true; });
     if (dc?.readyState === "open") dc.send("talk:start");
