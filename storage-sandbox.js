@@ -14,16 +14,47 @@
     return storage === localStorage && key === BASE_KEY ? `${BASE_KEY}${namespace}` : key;
   }
 
+  // Encrypt workspace at rest with the Android Keystore-based SecureStore.
+  // This is a one-time migration from plaintext WebView localStorage.
+  const nativeStore = () => window.NativeHost &&
+    typeof window.NativeHost.loadSecret === "function" &&
+    typeof window.NativeHost.saveSecret === "function" ? window.NativeHost : null;
+  const secureKey = "workspace_v091_" + namespace;
   Storage.prototype.getItem = function (key) {
-    return originalGet.call(this, mapKey(this, key));
+    const mapped = mapKey(this, key);
+    if (this === localStorage && key === BASE_KEY && nativeStore()) {
+      const secure = nativeStore().loadSecret(secureKey);
+      if (secure) {
+        originalRemove.call(this, mapped);
+        return secure;
+      }
+      const legacy = originalGet.call(this, mapped);
+      if (legacy) {
+        nativeStore().saveSecret(secureKey, legacy);
+        if (nativeStore().loadSecret(secureKey) !== legacy)
+          throw new Error("NEST workspace security migration failed");
+        originalRemove.call(this, mapped);
+        return legacy;
+      }
+      return null;
+    }
+    return originalGet.call(this, mapped);
   };
-
   Storage.prototype.setItem = function (key, value) {
-    return originalSet.call(this, mapKey(this, key), value);
+    const mapped = mapKey(this, key);
+    if (this === localStorage && key === BASE_KEY && nativeStore()) {
+      nativeStore().saveSecret(secureKey, String(value));
+      originalRemove.call(this, mapped);
+      return;
+    }
+    return originalSet.call(this, mapped, value);
   };
-
   Storage.prototype.removeItem = function (key) {
-    return originalRemove.call(this, mapKey(this, key));
+    const mapped = mapKey(this, key);
+    if (this === localStorage && key === BASE_KEY && nativeStore()) {
+      nativeStore().deleteSecret(secureKey);
+    }
+    return originalRemove.call(this, mapped);
   };
 
   async function roomNamespace(channel) {
