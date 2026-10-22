@@ -1,0 +1,9 @@
+
+.nest91-radio{display:flex;flex-direction:column;gap:10px;padding:17px 14px;margin:14px 0;background:#0b2418;border:1px solid #4d8163;border-radius:16px}
+.nest91-radio h3{color:#d5ffe5;font-size:15px;letter-spacing:.08em;margin:0}
+.nest91-radio p{color:#c0dfc9!important;font-size:13px;margin:2px 0}
+.nest91-radio button{min-height:51px;border-radius:12px;border:1px solid #8ebfa0;background:#1a4231;color:#e3fdea;padding:12px;font-size:16px;font-weight:800;touch-action:none;user-select:none;-webkit-user-select:none}
+.nest91-radio button:disabled{opacity:.4;cursor:not-allowed}
+.nest91-radio .nest91-radio-talk{min-height:100px;border:3px solid #b0ffbe;background:#20563b;font-size:clamp(19px,4.6vw,23px);letter-spacing:.04em;transition:background .08s}
+.nest91-radio .nest91-radio-talk.talking{background:#d0ffb2;color:#102e1c;box-shadow:0 0 26px #a6ff9544}
+.nest91-radio button:focus-visible{outline:2px solid white;outline-offset:3px}
