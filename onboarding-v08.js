@@ -475,6 +475,7 @@
   }
 
   function init() {
+    if (window.NEST_WIZARD_091) return;
     setupLauncher();
     createWizard();
     updateVersionCopy();
