@@ -1,3 +1,4 @@
+window.NEST_GITHUB_MODE = true;
 const STORAGE_KEY = "nest.channel.workspace.v1";
 const SETTINGS_KEY = "nest.channel.settings.v1";
 const CLIENT_KEY = "nest.channel.client.v1";
