@@ -1,0 +1,162 @@
+/* N3ST SHELL + push-to-talk extension. Intentionally scoped to add-on classes. */
+.nest-shell-launch {
+  font: 700 .72rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  padding: .68rem .85rem;
+  border: 1px solid #73f8b4;
+  border-radius: 10px;
+  background: rgba(32, 72, 57, .7);
+  color: #bafbd4;
+  box-shadow: inset 0 0 12px rgba(78, 238, 146, .11);
+  letter-spacing: .055em;
+  cursor: pointer;
+}
+.nest-shell-launch:hover, .nest-shell-launch:focus-visible { background: #1b4b34; color: white; }
+.nest-ptt {
+  grid-column: 1/-1;
+  display: block;
+  width: 100%;
+  padding: .72rem 1rem;
+  border: 1px solid #4cf1a6;
+  border-radius: 10px;
+  background: linear-gradient(110deg, #104331, #132a25);
+  color: #b7fbd3;
+  text-align: center;
+  font-weight: 750;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+.nest-ptt.is-recording {
+  background: linear-gradient(110deg, #8b202f, #4d111e);
+  border-color: #ff5f80;
+  color: #fff;
+  animation: nest-pulse 1s infinite alternate;
+}
+@keyframes nest-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(250, 78, 113, .15); }
+  100% { box-shadow: 0 0 0 7px rgba(250, 78, 113, .06); }
+}
+.nest-voice-status {
+  padding: .25rem .85rem .8rem;
+  font-size: .7rem;
+  color: #a5c5b6;
+  overflow-wrap: anywhere;
+}
+.nest-voice-status.is-error { color: #f9aab3; }
+.chat-message .nest-voice-message { display: flex; flex-direction: column; gap: .4rem; }
+.chat-message .nest-voice-message small { color: #b8d6c5; }
+.chat-message .nest-voice-message audio { width: 100%; max-width: 340px; height: 44px; }
+.nest-shell-dialog {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: min(94vw, 760px);
+  max-width: none;
+  max-height: min(92dvh, 850px);
+  padding: 0;
+  border: 1px solid #267a5d;
+  border-radius: 18px;
+  background: #07120f;
+  color: #cdecd9;
+  box-shadow: 0 24px 120px #000c, 0 0 45px #2bff9324;
+  overflow: hidden;
+}
+.nest-shell-dialog::backdrop { background: #010604d9; backdrop-filter: blur(7px); }
+.nest-console {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(.8rem, 3vw, 1.5rem);
+  gap: .8rem;
+  min-height: min(86dvh, 630px);
+}
+.nest-console-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: .7rem;
+  border-bottom: 1px solid #244735;
+  padding-bottom: .8rem;
+}
+.nest-kicker { color: #6befa9; font: .68rem ui-monospace, monospace; letter-spacing: .24em; }
+.nest-console-heading h2 {
+  font-size: clamp(1.5rem, 6vw, 2.8rem);
+  line-height: 1;
+  letter-spacing: -.055em;
+  margin: .35rem 0;
+  color: #f1fff6;
+  font-weight: 900;
+}
+.nest-console-heading h2 em { font-style: normal; color: #66f0a3; }
+.nest-console-heading p { color: #85a998; margin: .25rem 0; font-size: .78rem; }
+#nestShellClose {
+  border-radius: 9px;
+  border: 1px solid #36594a;
+  background: #173329;
+  color: #c7efde;
+  padding: .55rem .7rem;
+  cursor: pointer;
+}
+.nest-leds { display: flex; gap: .45rem; flex-wrap: wrap; font: .67rem ui-monospace, monospace; }
+.nest-leds span {
+  color: #9bdfb6;
+  background: #112920;
+  border: 1px solid #294b3a;
+  border-radius: 100px;
+  padding: .3rem .55rem;
+}
+.nest-shortcuts { display: flex; flex-wrap: wrap; gap: .4rem; }
+.nest-shortcuts button {
+  font: .74rem ui-monospace, monospace;
+  background: #13291f;
+  color: #a8f5c8;
+  border: 1px solid #345c46;
+  border-radius: 7px;
+  padding: .5rem .7rem;
+  cursor: pointer;
+}
+.nest-terminal-output {
+  flex: 1;
+  min-height: 180px;
+  max-height: 50dvh;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #234d36;
+  border-radius: 10px;
+  background: radial-gradient(ellipse at top left, #122e21, #060d0a 75%);
+  font: .81rem/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #aef4c6;
+}
+#nestShellForm { display: flex; gap: .5rem; align-items: center; }
+#nestShellForm label { flex: none; color: #65f0a6; font: .7rem ui-monospace, monospace; }
+#nestShellInput {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid #40674f;
+  background: #0a1811;
+  color: #e2ffee;
+  border-radius: 8px;
+  font: .83rem ui-monospace, monospace;
+  padding: .7rem .6rem;
+}
+#nestShellForm button { 
+  background: #4fe09a; color: #062113;
+  border: 0; border-radius: 8px;
+  padding: .7rem .8rem; font-weight: 850; cursor: pointer;
+}
+.nest-console-footer { color: #779987; font-size: .65rem; }
+@media (max-width: 500px) {
+  .nest-console { min-height: 80dvh; }
+  .nest-leds { font-size: .61rem; }
+  #nestShellForm { flex-wrap: wrap; }
+  #nestShellForm label { width: 100%; }
+  .topbar-actions { gap: .4rem; }
+  .nest-shell-launch { order: -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nest-ptt.is-recording { animation: none; }
+}
