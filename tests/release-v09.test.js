@@ -11,8 +11,8 @@ test("v0.9 targets Android API 36 with stable package identity", () => {
   assert.match(gradle, /applicationId 'no\.blckswan\.nestchannel'/);
   assert.match(gradle, /compileSdk 36/);
   assert.match(gradle, /targetSdk 36/);
-  assert.match(gradle, /versionCode 11/);
-  assert.match(gradle, /versionName '0\.9\.0'/);
+  assert.match(gradle, /versionCode 12/);
+  assert.match(gradle, /versionName '0\.9\.1'/);
 });
 
 test("signed release is gated by protected environment secrets", () => {
