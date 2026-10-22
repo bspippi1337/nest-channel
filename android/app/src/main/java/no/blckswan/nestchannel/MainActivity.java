@@ -114,6 +114,7 @@ public final class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
+        settings.setSupportMultipleWindows(false);
         settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.1");
 
         // Only bundled app-origin code may ever obtain access to native credentials.
