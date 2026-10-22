@@ -30,8 +30,8 @@ jobs:
           grep -q "id 'com.android.application' version '8.9.1'" android/build.gradle
           grep -q 'compileSdk 36' android/app/build.gradle
           grep -q 'targetSdk 36' android/app/build.gradle
-          grep -q 'versionCode 11' android/app/build.gradle
-          grep -q "versionName '0.9.0'" android/app/build.gradle
+          grep -q 'versionCode 12' android/app/build.gradle
+          grep -q "versionName '0.9.1'" android/app/build.gradle
           grep -q 'NEST_RELEASE_KEYSTORE_PATH' android/app/build.gradle
           grep -q 'NEST_RELEASE_CERT_SHA256' .github/workflows/release-v09.yml
           grep -q 'environment: release' .github/workflows/release-v09.yml
@@ -44,6 +44,8 @@ jobs:
           grep -q 'startGitHubPkce' android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java
           grep -q 'code_challenge_method=S256' android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java
           grep -q 'fetchLatestSnapshot' github-sync.js
+          grep -q 'RTCPeerConnection' nest-ptt-v091.js
+          grep -q 'WebChromeClient' android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java
           grep -q 'completeEnvelopeGroups' nest-core.js
           grep -q 'Lamport' README.md
 
@@ -73,12 +75,12 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename CI APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.9.0-ci-debug.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk NEST-Channel-v0.9.1-ci-debug.apk
 
       - name: Upload CI APK
         uses: actions/upload-artifact@v4
         with:
-          name: NEST-Channel-v0.9.0-CI
-          path: NEST-Channel-v0.9.0-ci-debug.apk
+          name: NEST-Channel-v0.9.1-CI
+          path: NEST-Channel-v0.9.1-ci-debug.apk
           retention-days: 30
           if-no-files-found: error
