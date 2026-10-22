@@ -1,6 +1,8 @@
 package no.blckswan.nestchannel;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.pm.PackageManager;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -10,6 +12,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -52,8 +56,10 @@ public final class MainActivity extends Activity {
     private static final String PKCE_VERIFIER_KEY = "github_pkce_verifier";
     private static final String PKCE_STATE_KEY = "github_pkce_state";
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int RECORD_AUDIO_REQUEST = 4205;
 
     private WebView webView;
+    private PermissionRequest pendingAudioPermission;
     private SecureStore secureStore;
     private SharedPreferences modePreferences;
     private LocalSyncManager localSyncManager;
@@ -114,6 +120,39 @@ public final class MainActivity extends Activity {
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
+        // WebView microphone access is limited to NEST's bundled trusted origin.
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (request.getOrigin() == null
+                            || !"appassets.androidplatform.net".equals(request.getOrigin().getHost())) {
+                        request.deny();
+                        return;
+                    }
+                    boolean requestedAudio = false;
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                            requestedAudio = true;
+                        } else {
+                            request.deny();
+                            return;
+                        }
+                    }
+                    if (!requestedAudio) {
+                        request.deny();
+                        return;
+                    }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    } else {
+                        pendingAudioPermission = request;
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, RECORD_AUDIO_REQUEST);
+                    }
+                });
+            }
+        });
+
         webView.setWebViewClient(new WebViewClient() {
             @Nullable
             @Override
@@ -133,6 +172,20 @@ public final class MainActivity extends Activity {
         else webView.restoreState(savedInstanceState);
 
         handleOAuthIntent(getIntent());
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != RECORD_AUDIO_REQUEST) return;
+        PermissionRequest request = pendingAudioPermission;
+        pendingAudioPermission = null;
+        if (request == null) return;
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+        } else {
+            request.deny();
+        }
     }
 
     @Override
