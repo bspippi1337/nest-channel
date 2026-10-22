@@ -108,11 +108,13 @@ public final class MainActivity extends Activity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        // PTT is enabled only after a visible explicit radio-activation gesture.
+        settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.7");
+        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.1");
 
         // Only bundled app-origin code may ever obtain access to native credentials.
         webView.setWebChromeClient(new WebChromeClient() {
