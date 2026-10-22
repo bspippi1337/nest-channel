@@ -377,6 +377,7 @@
       return false;
     }
     const chunks = [];
+    let hasWorkspaceEnvelopes = false;
     let newestSeenAt = "";
     let page = Math.max(1, Math.ceil(commentCount / 100));
     let pagesRead = 0;
@@ -388,7 +389,10 @@
         const stamp = String(comment.created_at || comment.updated_at || "");
         if (stamp > newestSeenAt) newestSeenAt = stamp;
         const chunk = commentChunk(comment);
-        if (chunk) chunks.push(chunk);
+        if (chunk) {
+          if (chunk.kind === "snapshot" || Number(chunk.v) === 1) hasWorkspaceEnvelopes = true;
+          chunks.push(chunk);
+        }
       }
       const groups = window.NESTCore.completeEnvelopeGroups(chunks);
       for (const group of groups) {
@@ -400,6 +404,9 @@
       }
       page--;
     }
+    // A fresh v0.9.1 setup may contain only encrypted handshake tests.
+    // Wrong keys for an EXISTING workspace still fail closed.
+    if (!hasWorkspaceEnvelopes) return false;
     throw new Error(`Kanalhistorikk finnes (${commentCount} kommentarer), men ingen komplett dekrypterbar snapshot ble funnet i de siste ${pagesRead * 100}. Kontroller kanalpassordet eller reparer synkhistorikken før du publiserer.`);
   }
 
