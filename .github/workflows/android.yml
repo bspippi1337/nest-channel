@@ -23,6 +23,17 @@ jobs:
       - name: Syntax and core tests
         run: npm run check
 
+      - name: Bundle exact source and technical documentation
+        run: git archive --format=zip --output=NEST-Channel-v0.9.1-source-and-docs.zip HEAD
+
+      - name: Upload source and technical documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEST-Channel-v0.9.1-SOURCE-DOCS
+          path: NEST-Channel-v0.9.1-source-and-docs.zip
+          retention-days: 90
+          if-no-files-found: error
+
       - name: Validate v0.9 release invariants
         shell: bash
         run: |
