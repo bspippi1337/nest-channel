@@ -53,7 +53,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      - name: Locate preinstalled Android SDK
+        run: |
+          echo "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
 
       - name: Install Android 16 SDK
         run: |
