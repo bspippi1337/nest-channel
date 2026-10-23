@@ -1,4 +1,4 @@
-const CACHE = "nest-channel-v12";
+const CACHE = "nest-channel-v13";
 const ASSETS = ["./", "./index.html", "./storage-sandbox.js", "./nest-core.js", "./app.js", "./styles.css", "./github-sync.js", "./github-sync.css", "./about.js", "./about.css", "./ux-v06.js", "./ux-v06.css", "./security-v07.js", "./security-v07.css", "./release-v09.js", "./nest-wizard-v091.js", "./nest-wizard-v091.css", "./nest-ptt-v091.js", "./nest-ptt-v091.css", "./manifest.webmanifest", "./icon.svg", "./nest-channel-comic.webp"];
 
 self.addEventListener("install", event => {
