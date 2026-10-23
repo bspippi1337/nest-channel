@@ -22,8 +22,8 @@ android {
         applicationId 'no.blckswan.nestchannel'
         minSdk 26
         targetSdk 36
-        versionCode 12
-        versionName '0.9.1'
+        versionCode 13
+        versionName '0.9.2'
         buildConfigField 'String', 'NEST_GITHUB_CLIENT_ID', javaString(githubClientId)
         buildConfigField 'String', 'NEST_GITHUB_CLIENT_SECRET', javaString(githubClientSecret)
     }
@@ -68,7 +68,7 @@ def syncWebAssets = tasks.register('syncWebAssets', Copy) {
         include 'index.html', 'storage-sandbox.js', 'nest-core.js', 'app.js', 'styles.css', 'manifest.webmanifest',
                 'icon.svg', 'nest-channel-comic.webp', 'service-worker.js', 'github-sync.js', 'github-sync.css',
                 'about.js', 'about.css', 'ux-v06.js', 'ux-v06.css', 'security-v07.js', 'security-v07.css',
-                'onboarding-v08.js', 'onboarding-v08.css', 'release-v09.js',
+                'release-v09.js',
                  'nest-wizard-v091.js', 'nest-wizard-v091.css', 'nest-ptt-v091.js', 'nest-ptt-v091.css'
     }
     into(layout.projectDirectory.dir('src/main/assets'))
