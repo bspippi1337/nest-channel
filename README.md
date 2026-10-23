@@ -1,3 +1,9 @@
+## NEST Channel 0.9.2: forenklet Android-app
+
+0.9.2 fjerner den utdaterte 0.8-veiviseren, gamle alias-referanser og teknisk "shell"-navngivning fra mobilgrensesnittet. Appen viser oppgaver, kryptert chat, veiviser og live WebRTC-PTT, ikke kommandoterminal eller Linux-vitser. Den eksisterende sikre kanalsynken og QR-innloggingen er videreført uendret. 
+
+Merk: Android Keystore-nøkkelalias og release-signering er *interne sikkerhetsidentifikatorer*, ikke brukerdefinerte shell-aliaser. Nødvendige byggskript for utvikling og Android-signering beholdes uten å eksponeres i appen.
+
 # NEST Channel
 
 **Riktig oppgave. Riktig person. Riktig tidspunkt.**

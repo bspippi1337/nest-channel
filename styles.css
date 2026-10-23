@@ -62,7 +62,7 @@ h1 span { color: var(--green); }
 .status-dot.offline { background: #637269; }
 .peer-count { border-left: 1px solid var(--line); padding-left: .45rem; }
 
-.shell { 
+.app-frame { 
   width: min(1450px, 100%); 
   margin: 0 auto; 
   padding: 1rem max(1rem, env(safe-area-inset-left)) 1rem max(1rem, env(safe-area-inset-right)); 
@@ -156,11 +156,11 @@ dialog {
   padding: 0;
 }
 dialog::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(3px); }
-.dialog-shell { padding: 1rem; display: grid; gap: .9rem; overflow-y: auto; }
+.dialog-content { padding: 1rem; display: grid; gap: .9rem; overflow-y: auto; }
 .dialog-top { display: flex; align-items: center; justify-content: space-between; }
 .icon-button { border: 0; background: transparent; color: var(--muted); font-size: 1.6rem; }
-.dialog-shell section { border-top: 1px solid var(--line); padding-top: .9rem; display: grid; gap: .6rem; }
-.dialog-shell h3 { font-size: .9rem; }
+.dialog-content section { border-top: 1px solid var(--line); padding-top: .9rem; display: grid; gap: .6rem; }
+.dialog-content h3 { font-size: .9rem; }
 .inline-form, .comment-form { display: grid; grid-template-columns: 1fr auto; gap: .5rem; }
 .dependency-row, .comment { border: 1px solid var(--line); border-radius: 10px; padding: .6rem; background: #09130e; }
 .dependency-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
@@ -185,7 +185,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(3px); }
     padding: 1rem max(0.75rem, env(safe-area-inset-left)) 1rem max(0.75rem, env(safe-area-inset-right));
   }
   
-  .shell {
+  .app-frame {
     padding: 1rem max(0.75rem, env(safe-area-inset-left)) 1rem max(0.75rem, env(safe-area-inset-right));
   }
   
@@ -199,7 +199,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(3px); }
     margin: auto;
   }
   
-  .dialog-shell {
+  .dialog-content {
     padding: 1rem max(0.5rem, env(safe-area-inset-left)) 1rem max(0.5rem, env(safe-area-inset-right));
   }
 }
@@ -211,7 +211,7 @@ dialog::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(3px); }
     gap: 0.5rem;
   }
   
-  .shell {
+  .app-frame {
     padding: 0.75rem max(0.5rem, env(safe-area-inset-left)) 0.75rem max(0.5rem, env(safe-area-inset-right));
   }
   

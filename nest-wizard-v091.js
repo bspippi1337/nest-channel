@@ -401,7 +401,7 @@
     const launcher = tag("button", "Oppsett 0.9.1", "nest91-launch", document.querySelector(".topbar-actions") || document.body);
     launcher.type = "button"; launcher.onclick = () => openWizard("welcome");
     const dialog = tag("dialog", "", "nest91-dialog", document.body); dialog.id = "nest91-dialog";
-    const article = tag("article", "", "nest91-shell", dialog);
+    const article = tag("article", "", "nest91-content", dialog);
     const head = tag("header", "", "nest91-head", article);
     tag("h2", "NEST 0.9.1", "", head).id = "nest91-title";
     button(head, "×", () => dialog.close(), "close");

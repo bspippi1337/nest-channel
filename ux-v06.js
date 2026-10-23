@@ -7,7 +7,7 @@
   const AUTO_LOCAL_SEND_MS = 220;
 
   const byId = id => document.getElementById(id);
-  const shell = document.querySelector(".shell");
+  const appFrame = document.querySelector(".app-frame");
   const workspaceEl = document.querySelector(".workspace");
   const tasksPane = document.querySelector(".tasks-pane");
   const channelPane = document.querySelector(".channel-pane");
@@ -125,7 +125,7 @@
   }
 
   function setupWorkspaceFirst() {
-    if (!shell || !workspaceEl || !connectCard || byId("syncSettings")) return;
+    if (!appFrame || !workspaceEl || !connectCard || byId("syncSettings")) return;
 
     const details = document.createElement("details");
     details.id = "syncSettings";

@@ -318,7 +318,7 @@
     audioNode = document.createElement("audio");
     audioNode.autoplay = true; audioNode.playsInline = true; audioNode.style.display = "none";
     panel.append(label, statusNode, mainButton, pttButton, audioNode);
-    const holder = document.querySelector(".channel-pane") || document.querySelector(".shell") || document.body;
+    const holder = document.querySelector(".channel-pane") || document.querySelector(".app-frame") || document.body;
     holder.append(panel);
     window.NestPTT091 = { stop: turnOff, connected: () => pc?.connectionState === "connected" };
   }

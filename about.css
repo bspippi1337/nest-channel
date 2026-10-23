@@ -22,7 +22,7 @@
   background: #07100c;
 }
 
-.about-shell {
+.about-content {
   max-height: 94vh;
   overflow-y: auto;
   background:
@@ -295,7 +295,7 @@
     border-radius: 18px;
   }
 
-  .about-shell { max-height: 97vh; }
+  .about-content { max-height: 97vh; }
   .door-grid { grid-template-columns: 1fr; }
 
   .door-card {
