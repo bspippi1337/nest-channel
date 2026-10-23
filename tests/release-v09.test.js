@@ -41,3 +41,14 @@ test("release milestones stay locked", () => {
   assert.match(plan, /v1\.0\.0 · Google Play/);
   assert.match(plan, /preserve package name and app-signing identity from v0\.9/);
 });
+
+test("main push uses original 0.9.0 identity and the same signed APK/AAB release build", () => {
+  const workflow = read(".github/workflows/release-v09.yml");
+  assert.match(workflow, /push:\s*\n\s*branches: \[main\]/);
+  assert.match(workflow, /gh release download v0\.9\.0/);
+  assert.match(workflow, /NEST-Channel-0\.9\.0-cert-sha256\.txt/);
+  assert.match(workflow, /Signing identity differs from the original v0\.9\.0 release/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch' && inputs\.publish/);
+  assert.match(workflow, /assembleRelease :app:bundleRelease/);
+  assert.match(workflow, /Upload verified build artifact/);
+});

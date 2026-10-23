@@ -1,3 +1,7 @@
+## 0.9.2 mainline signing and Play update continuity
+
+Sideload testing and Google Play share the existing v0.9.0 Android package identity and original release app-signing certificate. Debug APKs are strictly developer artifacts and cannot update the original signed app. Every push to main requests a **release-signed APK and AAB from the same commit**; the release CI job rejects a certificate that differs from the public v0.9.0 certificate fingerprint. Use the signed AAB first on a Google Play testing track and then promote **that exact AAB** to Production, rather than rebuilding. During Play App Signing enrollment, supply the original v0.9.0 **app-signing key**; a Play upload key may be different. See `RELEASE_PLAN.md`.
+
 ### Veiviseroppdatering: privat GitHub og Android 15/16 safe areas
 
 - 0.9.2 UI-hotfix er Android versionCode 14 (kan oppgradere forrige 0.9.2 test-APK med samme signeringsnøkkel).
