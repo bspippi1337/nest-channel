@@ -82,7 +82,7 @@
     dialog.id = "nestPairDialog";
     dialog.className = "nest-pair-dialog";
     dialog.innerHTML = `
-      <article class="nest-pair-shell">
+      <article class="nest-pair-content">
         <header>
           <div>
             <p class="eyebrow">LOKAL TILLIT · NESTPAIR1</p>

@@ -1,4 +1,4 @@
-/* NEST Channel 0.9.1 guided two-phone setup. No analytics and no third-party AI key access. */
+/* NEST Channel 0.9.2 guided two-phone setup. No analytics and no third-party AI key access. */
 (() => {
   "use strict";
   window.NEST_WIZARD_091 = true;
@@ -8,7 +8,7 @@
   const NEW_DONE = "nest.onboarding.v091.done";
   const enc = new TextEncoder();
   const state = {
-    role: "", step: "welcome", token: "", login: "", repo: "", visibility: "public",
+    role: "", step: "welcome", token: "", login: "", repo: "", visibility: "private",
     channel: "", key: "", nickname: "", issue: 0, expires: 0, error: ""
   };
   const randomBytes = n => crypto.getRandomValues(new Uint8Array(n));
@@ -122,7 +122,7 @@
   }
   function parseInvite(raw) {
     if (typeof raw !== "string" || !raw.startsWith("NESTINV1.") || raw.length > 1200) {
-      throw new Error("Dette er ikke en NEST 0.9.1-invitasjon.");
+      throw new Error("Dette er ikke en NEST 0.9.2-invitasjon.");
     }
     const data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(fromB64url(raw.slice(9))));
     if (data.v !== 1 || !validRepo(data.repo) || !validChannel(data.channel)
@@ -153,6 +153,23 @@
     if (!data.full_name || !!data.private !== (state.visibility === "private"))
       throw new Error("GitHub bekreftet ikke ønsket synlighet.");
     state.repo = data.full_name;
+    state.channel ||= randomChannel();
+    state.key ||= randKey();
+    next("channel");
+  }
+  async function privatizeRepo() {
+    if (state.role !== "host") throw new Error("Bare eieren kan gjøre et repo privat i veiviseren.");
+    if (!validRepo(state.repo)) throw new Error("Skriv eier/repo først.");
+    const [owner, repo] = state.repo.split("/");
+    const path = "/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo);
+    const current = await request(path);
+    if (!current.permissions?.admin) throw new Error("Du må ha administratorrettigheter for å endre synligheten.");
+    if (!current.private) {
+      if (!window.confirm("Dette repoet har vært offentlig. Tidligere publisert innhold kan fortsatt være kopiert. Vil du gjøre repoet privat nå?")) return;
+      await request(path, { method: "PATCH", body: { private: true } });
+    }
+    const result = await verifyRepo();
+    if (!result.private) throw new Error("GitHub bekreftet ikke at repoet er privat.");
     state.channel ||= randomChannel();
     state.key ||= randKey();
     next("channel");
@@ -262,7 +279,7 @@
   }
   function supportQuestion() {
     const lines = [
-      "Hjelp meg med NEST Channel 0.9.1 Android-oppsett på norsk.",
+      "Hjelp meg med NEST Channel 0.9.2 Android-oppsett på norsk.",
       "Steg: " + state.step + ". Rolle: " + (state.role || "ikke valgt") + ".",
       "GitHub-transport med AES-256-GCM og privat nøkkel kun på Android.",
       "Repo-type: " + state.visibility + ".",
@@ -281,18 +298,18 @@
   function render() {
     const dialog = $("nest91-dialog");
     if (!dialog) return;
-    const body = $("nest91-body"); body.replaceChildren();
+    const body = $("nest91-body"); body.replaceChildren(); body.scrollTop = 0;
     $("nest91-title").textContent = ({
       welcome: "To telefoner. Én kryptert kanal.", account: "GitHub-konto på telefonen",
       auth: "Koble GitHub til NEST", repository: "Velg transportlager",
       channel: "Opprett kryptert kanal", invite: "Inviter telefon nummer to",
       import: "Skann invitasjonen", access: "Kontroller GitHub-tilgang",
       ready: "Kanal verifisert"
-    })[state.step] || "NEST 0.9.1";
-    tag("p", "NEST · 0.9.1 · " + (state.role === "host" ? "Telefon A" : state.role === "join" ? "Telefon B" : "Velkommen"), "nest91-kicker", body);
+    })[state.step] || "NEST 0.9.2";
+    tag("p", "NEST · 0.9.2 · " + (state.role === "host" ? "Telefon A" : state.role === "join" ? "Telefon B" : "Velkommen"), "nest91-kicker", body);
     if (state.error) note(body, state.error, "error");
     if (state.step === "welcome") {
-      note(body, "Ingen laptop. GitHub er transport, telefonene eier nøkkelen. Offentlige repoer kan brukes, men metadata er offentlige.");
+      note(body, "Ingen laptop. NEST krypterer meldingene på telefonen. Et privat GitHub-repo skjuler innhold og repoaktivitet for uvedkommende; GitHub som tjeneste ser fortsatt kontoen og trafikken.");
       button(body, "Telefon A · Opprett kanal", () => { state.role = "host"; state.channel ||= randomChannel(); state.key ||= randKey(); next("account"); }, "primary");
       button(body, "Telefon B · Bli med", () => { state.role = "join"; next("import"); });
       button(body, "Bruk NEST lokalt uten GitHub", () => { native()?.setSyncMode?.("local"); localStorage.setItem("nest.sync.mode.v1", "local"); dialog.close(); });
@@ -303,7 +320,7 @@
       field(body, "NESTINV1-kode", "pendingInvite", { placeholder: "NESTINV1....", maxLength: 1200 });
       button(body, "Kontroller invitasjonen", () => parseInvite(state.pendingInvite || ""), "primary");
       button(body, "Skann QR-kode", () => {
-        if (!native()?.scanInviteQr) throw new Error("QR-skanning krever Android-APK med NEST 0.9.1.");
+        if (!native()?.scanInviteQr) throw new Error("QR-skanning krever Android-APK med NEST 0.9.2.");
         native().scanInviteQr();
       });
       button(body, "Tilbake", () => next("welcome"), "ghost");
@@ -331,18 +348,20 @@
       return;
     }
     if (state.step === "repository") {
-      note(body, "Et offentlig repo fungerer fordi alle meldinger krypteres før opplasting. GitHub kan fortsatt se tidspunkt, kontoer og mengde trafikk.");
+      note(body, "Anbefalt: Privat repo og én GitHub-konto per telefon. Den som eier repoet inviterer den andre som samarbeidspartner. Et offentlig repo fungerer også med krypterte meldinger, men aktivitet kan være synlig.");
       const select = tag("select", "", "nest91-select", body);
-      [["public", "Offentlig repo · enklest for to"], ["private", "Privat repo · krever GitHub-invitasjon"]].forEach(([value, label]) => {
+      [["private", "Privat repo · anbefalt"], ["public", "Offentlig repo · synlig aktivitet"]].forEach(([value, label]) => {
         const o = tag("option", label, "", select); o.value = value;
       });
       select.value = state.visibility;
       select.onchange = () => { state.visibility = select.value; };
       button(body, "Opprett nytt repo på GitHub", createRepo, "primary");
       field(body, "Eller bruk eksisterende repo (eier/navn)", "repo", { placeholder: "githubbruker/nest-data" });
-      button(body, "Kontroller eksisterende repo", async () => {
+      button(body, "Gjør eksisterende repo privat og fortsett", privatizeRepo, "primary");
+      button(body, "Bruk eksisterende repo som det er", async () => {
         await verifyRepo(); state.channel ||= randomChannel(); state.key ||= randKey(); next("channel");
       });
+      note(body, "Viktig: Tidligere offentlig innhold kan være kopiert. Opprett et nytt privat repo hvis du starter med sensitive data.");
       return;
     }
     if (state.step === "channel") {
@@ -368,7 +387,7 @@
       button(body, "Kopier privat invitasjonskode", copyInvite);
       button(body, "Lag ny QR med ny utløpstid", () => render());
       if (state.visibility === "private") {
-        note(body, "Privat repo krever at partnerens GitHub-konto får tilgang. Inviter før telefon B tester kanalen.");
+        note(body, "To separate GitHub-kontoer er anbefalt. Oppgi den andres GitHub-brukernavn, inviter med skrivetilgang, og be telefon B godkjenne invitasjonen før kanalen testes.");
         const input = tag("input", "", "nest91-input", body); input.id = "nest91-partner"; input.placeholder = "GitHub-brukernavn til telefon B";
         button(body, "Send GitHub-invitasjon", inviteCollaborator);
       }
@@ -398,12 +417,12 @@
   }
   function init() {
     if ($("nest91-dialog")) return;
-    const launcher = tag("button", "Oppsett 0.9.1", "nest91-launch", document.querySelector(".topbar-actions") || document.body);
+    const launcher = tag("button", "Oppsett 0.9.2", "nest91-launch", document.querySelector(".topbar-actions") || document.body);
     launcher.type = "button"; launcher.onclick = () => openWizard("welcome");
-    const dialog = tag("dialog", "", "nest91-dialog", document.body); dialog.id = "nest91-dialog";
-    const article = tag("article", "", "nest91-shell", dialog);
+    const dialog = tag("dialog", "", "nest91-dialog", document.body); dialog.id = "nest91-dialog"; dialog.setAttribute("aria-labelledby", "nest91-title");
+    const article = tag("article", "", "nest91-content", dialog);
     const head = tag("header", "", "nest91-head", article);
-    tag("h2", "NEST 0.9.1", "", head).id = "nest91-title";
+    tag("h2", "NEST 0.9.2", "", head).id = "nest91-title";
     button(head, "×", () => dialog.close(), "close");
     tag("section", "", "nest91-body", article).id = "nest91-body";
     const footer = tag("footer", "", "nest91-footer", article);

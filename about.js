@@ -268,7 +268,7 @@
 
   const anchor = dialog.querySelector(".about-principles") || dialog.querySelector(".about-product-note");
   if (anchor) anchor.before(section);
-  else dialog.querySelector(".about-shell")?.append(section);
+  else dialog.querySelector(".about-content")?.append(section);
 
   const style = document.createElement("style");
   style.textContent = `

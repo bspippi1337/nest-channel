@@ -19,6 +19,13 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.view.ViewGroup;
+
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import androidx.annotation.Nullable;
 import androidx.webkit.WebViewAssetLoader;
@@ -77,9 +84,31 @@ public final class MainActivity extends Activity {
         secureStore = new SecureStore(this);
         modePreferences = getSharedPreferences(MODE_PREFERENCES, MODE_PRIVATE);
 
+        // Android 15/16 may lay out an edge-to-edge WebView beneath system bars.
+        // Give the WebView a viewport that excludes status bar, cutouts, navigation
+        // and the on-screen keyboard, including on devices where CSS env() is zero.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(7, 16, 12));
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(7, 16, 12));
-        setContentView(webView);
+        root.addView(webView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets safe = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout());
+            Insets keyboard = insets.getInsets(WindowInsetsCompat.Type.ime());
+            int bottom = Math.max(safe.bottom, keyboard.bottom);
+            FrameLayout.LayoutParams layout = (FrameLayout.LayoutParams) webView.getLayoutParams();
+            if (layout.leftMargin != safe.left || layout.topMargin != safe.top
+                    || layout.rightMargin != safe.right || layout.bottomMargin != bottom) {
+                layout.setMargins(safe.left, safe.top, safe.right, bottom);
+                webView.setLayoutParams(layout);
+            }
+            return insets;
+        });
+        setContentView(root);
+        ViewCompat.requestApplyInsets(root);
 
         localSyncManager = new LocalSyncManager(this, new LocalSyncManager.Listener() {
             @Override
@@ -115,7 +144,7 @@ public final class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
         settings.setSupportMultipleWindows(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.1");
+        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.2");
 
         // Only bundled app-origin code may ever obtain access to native credentials.
         webView.setWebChromeClient(new WebChromeClient() {
@@ -237,7 +266,7 @@ public final class MainActivity extends Activity {
                 String url = AUTHORIZE_URL
                         + "?client_id=" + enc(BuildConfig.NEST_GITHUB_CLIENT_ID)
                         + "&redirect_uri=" + enc(OAUTH_REDIRECT)
-                        + "&scope=" + enc("public_repo read:user")
+                        + "&scope=" + enc("repo read:user")
                         + "&state=" + enc(state)
                         + "&code_challenge=" + enc(challenge)
                         + "&code_challenge_method=S256";
@@ -285,7 +314,7 @@ public final class MainActivity extends Activity {
                 try {
                     Map<String, String> form = new LinkedHashMap<>();
                     form.put("client_id", clientId == null ? "" : clientId.trim());
-                    form.put("scope", "public_repo read:user");
+                    form.put("scope", "repo read:user");
                     String body = postForm(DEVICE_CODE_URL, form);
                     callJavaScript("window.NestGitHubAuth&&window.NestGitHubAuth.onDeviceCode(" + JSONObject.quote(body) + ")");
                 } catch (Exception error) { reportNativeError(error); }

@@ -1,3 +1,24 @@
+## 0.9.2 mainline signing and Play update continuity
+
+Sideload testing and Google Play share the existing v0.9.0 Android package identity and original release app-signing certificate. Debug APKs are strictly developer artifacts and cannot update the original signed app. Every push to main requests a **release-signed APK and AAB from the same commit**; the release CI job rejects a certificate that differs from the public v0.9.0 certificate fingerprint. Use the signed AAB first on a Google Play testing track and then promote **that exact AAB** to Production, rather than rebuilding. During Play App Signing enrollment, supply the original v0.9.0 **app-signing key**; a Play upload key may be different. See `RELEASE_PLAN.md`.
+
+### Veiviseroppdatering: privat GitHub og Android 15/16 safe areas
+
+- 0.9.2 UI-hotfix er Android versionCode 14 (kan oppgradere forrige 0.9.2 test-APK med samme signeringsnøkkel).
+- GitHub OAuth ber om `repo read:user` for å støtte private Issues. GitHub OAuth-scope `repo` er bredt; fine-grained tilgangsnøkler med minimale tillatelser er et alternativ.
+- Privat GitHub-repo er standardvalg. Et eksisterende repo kan byttes til privat med et eksplisitt samtykke, forutsatt administratorrettigheter.
+- For privat repo bruker telefonene separate GitHub-kontoer. Repo-eier inviterer telefon B som samarbeidspartner med skrivetilgang. Telefon B godkjenner i GitHub. En delt konto anbefales ikke.
+- Konvertering fra offentlig til privat kan ikke trekke tilbake tidligere kopier av offentlig innhold. Bruk nytt privat repo for sensitive kanaler.
+- Mediekryptering skjer på telefonen; offentlig GitHub kan avsløre trafikkmetadata, men slike metadata dekrypterer ikke AES-GCM uten nøkkelen.
+- Android WebView får eksplisitte system- og tastatur-insets på telefonen. Veiviseren holder horisontal marg og lar innholdet rulles mellom fast topp/bunn.
+- GitLab har private prosjekter, Issues/notes og medlemsinvitasjoner, men krever en egen API-adapter før det blir kompatibel transport i NEST.
+
+## NEST Channel 0.9.2: forenklet Android-app
+
+0.9.2 fjerner den utdaterte 0.8-veiviseren, gamle alias-referanser og teknisk "shell"-navngivning fra mobilgrensesnittet. Appen viser oppgaver, kryptert chat, veiviser og live WebRTC-PTT, ikke kommandoterminal eller Linux-vitser. Den eksisterende sikre kanalsynken og QR-innloggingen er videreført uendret. 
+
+Merk: Android Keystore-nøkkelalias og release-signering er *interne sikkerhetsidentifikatorer*, ikke brukerdefinerte shell-aliaser. Nødvendige byggskript for utvikling og Android-signering beholdes uten å eksponeres i appen.
+
 # NEST Channel
 
 **Riktig oppgave. Riktig person. Riktig tidspunkt.**
