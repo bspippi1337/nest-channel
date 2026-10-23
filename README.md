@@ -1,3 +1,12 @@
+### Veiviseroppdatering: privat GitHub og Android 15/16 safe areas
+
+- Privat GitHub-repo er standardvalg. Et eksisterende repo kan byttes til privat med et eksplisitt samtykke, forutsatt administratorrettigheter.
+- For privat repo bruker telefonene separate GitHub-kontoer. Repo-eier inviterer telefon B som samarbeidspartner med skrivetilgang. Telefon B godkjenner i GitHub. En delt konto anbefales ikke.
+- Konvertering fra offentlig til privat kan ikke trekke tilbake tidligere kopier av offentlig innhold. Bruk nytt privat repo for sensitive kanaler.
+- Mediekryptering skjer på telefonen; offentlig GitHub kan avsløre trafikkmetadata, men slike metadata dekrypterer ikke AES-GCM uten nøkkelen.
+- Android WebView får eksplisitte system- og tastatur-insets på telefonen. Veiviseren holder horisontal marg og lar innholdet rulles mellom fast topp/bunn.
+- GitLab har private prosjekter, Issues/notes og medlemsinvitasjoner, men krever en egen API-adapter før det blir kompatibel transport i NEST.
+
 ## NEST Channel 0.9.2: forenklet Android-app
 
 0.9.2 fjerner den utdaterte 0.8-veiviseren, gamle alias-referanser og teknisk "shell"-navngivning fra mobilgrensesnittet. Appen viser oppgaver, kryptert chat, veiviser og live WebRTC-PTT, ikke kommandoterminal eller Linux-vitser. Den eksisterende sikre kanalsynken og QR-innloggingen er videreført uendret. 

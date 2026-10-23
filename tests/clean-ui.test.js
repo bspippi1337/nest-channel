@@ -37,3 +37,27 @@ test("Android stays a plain app without executable terminal or command bridge", 
   assert.match(read("android/app/build.gradle"), /versionName '0\.9\.2'/);
   assert.match(read("service-worker.js"), /nest-channel-v12/);
 });
+
+test("wizard stays inside Android bars and all scrollable steps", () => {
+  const css = read("nest-wizard-v091.css");
+  const java = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+  assert.match(css, /height:calc\(100dvh - 24px\)/);
+  assert.match(css, /min-height:0/);
+  assert.match(css, /overflow-y:auto/);
+  assert.match(css, /touch-action:pan-y/);
+  assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\)/);
+  assert.match(java, /WindowInsetsCompat\.Type\.displayCutout\(\)/);
+  assert.match(java, /WindowInsetsCompat\.Type\.ime\(\)/);
+  assert.match(java, /layout\.setMargins/);
+});
+
+test("private GitHub repository is default, can be converted, and invites collaborators", () => {
+  const js = read("nest-wizard-v091.js");
+  assert.match(js, /visibility: "private"/);
+  assert.match(js, /async function privatizeRepo\(\)/);
+  assert.match(js, /method: "PATCH", body: \{ private: true \}/);
+  assert.match(js, /Gjør eksisterende repo privat og fortsett/);
+  assert.match(js, /collaborators\/"/);
+  assert.match(js, /permission: "push"/);
+  assert.match(js, /Tidligere offentlig innhold kan være kopiert/);
+});
