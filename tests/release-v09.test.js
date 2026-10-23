@@ -11,7 +11,7 @@ test("v0.9 targets Android API 36 with stable package identity", () => {
   assert.match(gradle, /applicationId 'no\.blckswan\.nestchannel'/);
   assert.match(gradle, /compileSdk 36/);
   assert.match(gradle, /targetSdk 36/);
-  assert.match(gradle, /versionCode 13/);
+  assert.match(gradle, /versionCode 14/);
   assert.match(gradle, /versionName '0\.9\.2'/);
 });
 

@@ -61,3 +61,10 @@ test("private GitHub repository is default, can be converted, and invites collab
   assert.match(js, /permission: "push"/);
   assert.match(js, /Tidligere offentlig innhold kan være kopiert/);
 });
+
+test("private GitHub OAuth can access private Issues and Android hotfix is upgradeable", () => {
+  const java = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+  assert.match(java, /repo read:user/);
+  assert.doesNotMatch(java, /public_repo read:user/);
+  assert.match(read("android/app/build.gradle"), /versionCode 14/);
+});

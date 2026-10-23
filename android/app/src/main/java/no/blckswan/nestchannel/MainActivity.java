@@ -266,7 +266,7 @@ public final class MainActivity extends Activity {
                 String url = AUTHORIZE_URL
                         + "?client_id=" + enc(BuildConfig.NEST_GITHUB_CLIENT_ID)
                         + "&redirect_uri=" + enc(OAUTH_REDIRECT)
-                        + "&scope=" + enc("public_repo read:user")
+                        + "&scope=" + enc("repo read:user")
                         + "&state=" + enc(state)
                         + "&code_challenge=" + enc(challenge)
                         + "&code_challenge_method=S256";
@@ -314,7 +314,7 @@ public final class MainActivity extends Activity {
                 try {
                     Map<String, String> form = new LinkedHashMap<>();
                     form.put("client_id", clientId == null ? "" : clientId.trim());
-                    form.put("scope", "public_repo read:user");
+                    form.put("scope", "repo read:user");
                     String body = postForm(DEVICE_CODE_URL, form);
                     callJavaScript("window.NestGitHubAuth&&window.NestGitHubAuth.onDeviceCode(" + JSONObject.quote(body) + ")");
                 } catch (Exception error) { reportNativeError(error); }

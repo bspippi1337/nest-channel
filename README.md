@@ -1,5 +1,7 @@
 ### Veiviseroppdatering: privat GitHub og Android 15/16 safe areas
 
+- 0.9.2 UI-hotfix er Android versionCode 14 (kan oppgradere forrige 0.9.2 test-APK med samme signeringsnøkkel).
+- GitHub OAuth ber om `repo read:user` for å støtte private Issues. GitHub OAuth-scope `repo` er bredt; fine-grained tilgangsnøkler med minimale tillatelser er et alternativ.
 - Privat GitHub-repo er standardvalg. Et eksisterende repo kan byttes til privat med et eksplisitt samtykke, forutsatt administratorrettigheter.
 - For privat repo bruker telefonene separate GitHub-kontoer. Repo-eier inviterer telefon B som samarbeidspartner med skrivetilgang. Telefon B godkjenner i GitHub. En delt konto anbefales ikke.
 - Konvertering fra offentlig til privat kan ikke trekke tilbake tidligere kopier av offentlig innhold. Bruk nytt privat repo for sensitive kanaler.
