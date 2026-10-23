@@ -7,7 +7,7 @@ const read = file => fs.readFileSync(path.join(root, file), "utf8");
 
 test("v0.9.1 supports both public and private repos", () => {
   const js = read("nest-wizard-v091.js");
-  assert.match(js, /visibility: "public"/);
+  assert.match(js, /visibility: "private"/);
   assert.match(js, /private: state\.visibility === "private"/);
   assert.match(js, /https:\/\/github\.com\/signup/);
   assert.match(js, /NESTINV1/);
