@@ -322,6 +322,8 @@
   }
 
   async function fsPost(item) {
+    const current=await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
+    window.NESTSecurity?.requirePrivateRepo(current);
     const body = FS_MARKER + "\n" + JSON.stringify(item);
     if (body.length > 14000) throw Error("FS1 melding er for stor");
     const result = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments`, {
@@ -400,11 +402,18 @@
     if(password) window.NESTSecurity.requireStrongChannelKey(password);
     const repoData = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
     window.NESTSecurity.requirePrivateRepo(repoData);
-    roomId=bytesToHex(await sha256Bytes("nest-room:"+channel.trim().toLocaleLowerCase("nb")));
+    roomId=bytesToHex(await sha256Bytes("nest-fs-room:"
+      +repoOwner.toLowerCase()+"/"+repoName.toLowerCase()+":"
+      +channel.trim().toLocaleLowerCase("nb")));
     const stateKey = "fs_state_" + roomId;
     fsChannel = new window.NESTGitHubFS.FSChannel({
       room:roomId,
-      load:()=>secretLoad(stateKey),
+      load:()=>{
+        const value=secretLoad(stateKey);
+        if (window.NativeHost?.hasSecret?.(stateKey) && !value)
+          throw Error("FS1 Keystore kan ikke åpnes; eksisterende nøkler må ikke overskrives.");
+        return value;
+      },
       save:v=>secretSave(stateKey,v)
     });
     await fsChannel.open(password);
@@ -700,11 +709,14 @@
     const password = el.channelPassword.value || secretLoad("channel_password");
     if (!channel) return alert("Skriv et kanalnavn.");
     if (!nickname) return alert("Skriv et kallenavn.");
-    if (password.length < 8 && !(window.NESTSecurity?.isStrict() && secretLoad("fs_state_" + bytesToHex(await sha256Bytes("nest-room:"+channel.trim().toLocaleLowerCase("nb"))))))
-      return alert("Kanalpassordet må ha minst 8 tegn ved første oppsett.");
     let parsed;
     try { parsed = parseRepo(el.relayUrl.value); }
     catch (error) { return alert(error.message); }
+    const fsHash=bytesToHex(await sha256Bytes("nest-fs-room:"
+      +parsed.owner.toLowerCase()+"/"+parsed.repo.toLowerCase()+":"
+      +channel.trim().toLocaleLowerCase("nb")));
+    if (password.length < 8 && !(window.NESTSecurity?.isStrict() && secretLoad("fs_state_" + fsHash)))
+      return alert("Kanalpassordet må ha minst 8 tegn ved første oppsett.");
     repoOwner = parsed.owner;
     repoName = parsed.repo;
     connectedNickname = nickname;
@@ -773,8 +785,13 @@
     const savedPassword = secretLoad("channel_password");
     let fsSaved = false;
     if (window.NESTSecurity?.isStrict() && el.channelName.value.trim()) {
-      const hash=bytesToHex(await sha256Bytes("nest-room:"+el.channelName.value.trim().replace(/^#/,"").toLocaleLowerCase("nb")));
-      fsSaved=Boolean(secretLoad("fs_state_"+hash));
+      try {
+        const repo=parseRepo(el.relayUrl.value);
+        const hash=bytesToHex(await sha256Bytes("nest-fs-room:"
+          +repo.owner.toLowerCase()+"/"+repo.repo.toLowerCase()+":"
+          +el.channelName.value.trim().replace(/^#/,"").toLocaleLowerCase("nb")));
+        fsSaved=Boolean(secretLoad("fs_state_"+hash));
+      } catch {}
     }
     if ((savedPassword || fsSaved) && el.channelName.value.trim() && el.nickname.value.trim()) {
       el.channelPassword.value = savedPassword;
