@@ -68,7 +68,7 @@ final class LocalSyncManager {
     private static final long SESSION_ROTATE_MS = 15 * 60_000L;
     private static final long MAX_SIGNED_HELLO_SKEW_MS = 90_000L;
     private static final int MAX_FRAGMENT_COUNT = 128;
-    private static final int MAX_ACTIVE_ASSEMBLIES = 128;
+    private static final int MAX_ACTIVE_ASSEMBLIES = 8;
     private static final int MAX_WORKSPACE_BYTES = 2_000_000;
     private static final int MAX_PACKET_BYTES = 34_000;
     private static final long PEER_TIMEOUT_MS = 15_000L;
