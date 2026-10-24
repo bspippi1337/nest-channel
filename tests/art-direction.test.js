@@ -33,7 +33,7 @@ test("vector assets are bundled locally; no remote fonts, visual trackers or uns
     assert.ok(gradle.includes(asset), `Not bundled by Gradle: ${asset}`);
     assert.ok(sw.includes(asset), `Not cached for offline: ${asset}`);
   }
-  assert.match(sw, /nest-channel-v17/);
+  assert.match(sw, /nest-channel-v18/);
   assert.doesNotMatch(html, /https?:\/\/(fonts\.|images\.|cdn\.)/);
   for (const name of ["nest-orbit.svg","nest-flow.svg","nest-empty.svg","icon.svg"]) {
     const svg = read(name);
@@ -65,4 +65,28 @@ test("About includes illustrated editorial story and up-to-date honest release l
   assert.match(html, /ikke dokumentert anonymitet, forward secrecy/);
   assert.match(html, /SIKKERHET/);
   assert.doesNotMatch(js, /Versjon 0\.[578]\./);
+});
+
+test("long Norwegian words and related header controls must not break into letter columns", () => {
+ const css=read("art-direction.css");
+ const html=read("index.html");
+ assert.match(css,/word-break: normal/);
+ assert.match(css,/overflow-wrap: normal/);
+ assert.match(css,/\.nest91-head \.close \{ flex: 0 0 42px/);
+ assert.match(css,/\.nest-threat-button \{ flex-basis: 100% !important/);
+ assert.match(css,/\.topbar-actions > button \{ flex: 0 0 auto !important/);
+ assert.match(css,/max-width:365px/);
+ assert.match(html,/class="nest-phrase">Én tanke\./);
+});
+test("illustration movements are meaningful, short and respect reduced motion", () => {
+ const svgFiles=["nest-comic-about.svg","nest-comic-repo.svg","nest-comic-qr.svg","nest-comic-verify.svg"];
+ for(const f of svgFiles) {
+  const svg=read(f);
+  assert.match(svg,/prefers-reduced-motion: reduce/);
+  assert.match(svg,/animation:none!important/);
+  assert.doesNotMatch(svg,/infinite|<script|onload=|foreignObject/i,f);
+ }
+ const wizard=read("nest-wizard-v091.js"), about=read("about.js");
+ for(const f of svgFiles)assert.ok(wizard.includes(f)||about.includes(f),f);
+ assert.match(about,/nest-comic-about\.svg/);
 });

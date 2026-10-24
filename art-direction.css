@@ -426,3 +426,103 @@ dialog::backdrop { background: rgba(4,10,10,.84); backdrop-filter: blur(6px); }
 .nest91-comic figcaption{font-size:.68rem;line-height:1.5;font-weight:700;letter-spacing:.04em;color:#b7d1be;overflow-wrap:anywhere}
 @media(max-width:365px){.nest91-comic{padding:5px 7px}.nest91-comic img{height:94px}.nest91-comic figcaption{font-size:.62rem}}
 @media(prefers-reduced-motion:reduce){.nest91-comic *,.nest-handdrawn *{animation:none!important;transition:none!important}}
+
+
+/* WORD & CONTROL INTEGRITY / 0.9.3 layout audit:
+ * Never force a word into a vertical letter-stack. Give complete labels
+ * enough width; move entire controls to another row instead.
+ */
+.brand-signature > div { min-width: max-content; }
+.brand-signature h1 { white-space: nowrap; }
+.topbar-actions { align-content: center; }
+.topbar-actions > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+.connection-state {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+.nest-intro h2 .nest-phrase,
+.nest-intro h2 em {
+  display: inline-block;
+  white-space: nowrap;
+}
+.nest91-head h2,
+.nest91-kicker,
+.nest91-note,
+.nest91-btn,
+.nest91-comic figcaption,
+.about-hero h2,
+.about-content h3,
+.about-lead,
+.about-content figcaption,
+.about-content blockquote,
+.door-card strong,
+.principle strong,
+.trust-grid span,
+.example-flow strong,
+.nest-intro-copy > p,
+.nest-beta-label,
+.sync-mode-picker button,
+.mobile-nav button,
+.filters button {
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+.nest91-head h2,
+.about-hero h2,
+.about-content h3,
+.nest-intro h2 { text-wrap: balance; }
+.nest91-head { gap: 12px; }
+.nest91-head h2 { min-width: 0; flex: 1 1 auto; }
+.nest91-head .close { flex: 0 0 42px; }
+.nest91-btn {
+  white-space: normal;
+  text-wrap: pretty;
+  min-width: 0;
+}
+.nest91-comic figcaption {
+  text-wrap: balance;
+  padding-inline: 5px;
+}
+.about-comic-frame figcaption { text-wrap: pretty; }
+.about-feature-art figcaption { text-wrap: balance; }
+.about-hero h2 span { display: inline-block; }
+.about-footer > div { min-width: 0; }
+.trust-grid > span { min-width: 0; }
+@media(max-width: 560px) {
+  .topbar-actions { align-content: start; }
+  .topbar-actions > button { flex: 0 0 auto !important; max-width: 100%; }
+  .topbar-actions .connection-state {
+    order: -1; flex: 1 0 100%; justify-content: flex-start;
+  }
+  .nest-threat-button { flex-basis: 100% !important; }
+  .nest91-head h2 {
+    font-size: clamp(1.14rem, 4.6vw, 1.44rem);
+    line-height: 1.18; letter-spacing: -.02em;
+  }
+  .nest91-body { padding-inline: clamp(14px, 4.3vw, 20px); }
+  .nest91-comic { padding: 7px 10px; }
+  .nest91-comic figcaption { font-size: .69rem; }
+  .about-hero h2 {
+    font-size: clamp(1.64rem, 8.2vw, 2.55rem);
+    line-height: 1.12;
+    letter-spacing: -.038em;
+  }
+  .about-overline, .about-kicker { letter-spacing: .09em; }
+  .filters { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .filters button { font-size: clamp(.69rem,2.1vw,.76rem); }
+}
+@media(max-width:365px) {
+  .about-hero h2 { font-size: clamp(1.51rem,7.7vw,1.92rem); letter-spacing: -.045em; }
+  .topbar h1 { font-size: .95rem; }
+  .nest91-head h2 { font-size: 1.045rem; }
+  .nest91-comic figcaption { font-size: .64rem; }
+  .nest-intro h2 { font-size: 1.9rem; }
+}

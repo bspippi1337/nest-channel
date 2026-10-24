@@ -321,8 +321,8 @@
       channel: "Opprett kryptert kanal", invite: "Inviter telefon nummer to",
       import: "Skann invitasjonen", access: "Kontroller GitHub-tilgang",
       ready: "Kanal verifisert"
-    })[state.step] || "NEST 0.9.2";
-    tag("p", "NEST · 0.9.2 · " + (state.role === "host" ? "Telefon A" : state.role === "join" ? "Telefon B" : "Velkommen"), "nest91-kicker", body);
+    })[state.step] || "NEST 0.9.3";
+    tag("p", "NEST · 0.9.3 · " + (state.role === "host" ? "Telefon A" : state.role === "join" ? "Telefon B" : "Velkommen"), "nest91-kicker", body);
     if (state.error) note(body, state.error, "error");
     // Small hand-drawn diagrams provide context, never a security attestation.
     const art = ({
@@ -460,7 +460,7 @@
     const dialog = tag("dialog", "", "nest91-dialog", document.body); dialog.id = "nest91-dialog"; dialog.setAttribute("aria-labelledby", "nest91-title");
     const article = tag("article", "", "nest91-content", dialog);
     const head = tag("header", "", "nest91-head", article);
-    tag("h2", "NEST 0.9.2", "", head).id = "nest91-title";
+    tag("h2", "NEST 0.9.3", "", head).id = "nest91-title";
     button(head, "×", () => dialog.close(), "close");
     tag("section", "", "nest91-body", article).id = "nest91-body";
     const footer = tag("footer", "", "nest91-footer", article);
