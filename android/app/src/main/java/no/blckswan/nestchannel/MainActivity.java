@@ -89,8 +89,13 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Prevent ordinary screenshots, screen recordings and Recents thumbnails.
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        // Capture is allowed only in the separately installable DEMO DEBUG variant.
+        // Every release build, including one mistakenly built from this branch, remains protected.
+        if (BuildConfig.DEBUG && BuildConfig.NEST_CAPTURE_DEMO) {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        } else {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
         WebView.setWebContentsDebuggingEnabled(false);
         getWindow().setStatusBarColor(Color.rgb(7, 16, 12));
         getWindow().setNavigationBarColor(Color.rgb(7, 16, 12));

@@ -48,7 +48,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Isolated screencast/test install. Never share app data with signed NEST.
+            applicationIdSuffix '.demo'
+            versionNameSuffix '-capture'
+            buildConfigField 'boolean', 'NEST_CAPTURE_DEMO', 'true'
+        }
         release {
+            // Production builds retain Android screenshot/recording protection.
+            buildConfigField 'boolean', 'NEST_CAPTURE_DEMO', 'false'
             if (releaseSigningReady) {
                 signingConfig signingConfigs.release
             }
