@@ -305,6 +305,10 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public String loadSecret(String key) {
             if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
+            // Strict chat is native-only. Neither legacy shared-channel passwords
+            // nor long-lived GitHub bearer tokens may cross into WebView JS.
+            if (isHighThreatStrict() &&
+                    ("github_token".equals(key) || "channel_password".equals(key))) return "";
             if ("github_token".equals(key) && "local".equals(modePreferences.getString("mode", "auto"))) return "";
             return secureStore.get(key);
         }
