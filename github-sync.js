@@ -536,10 +536,12 @@
         v: 2, kind: "event", room: roomId, id: crypto.randomUUID(), part: 1, total: 1,
         iv: encrypted.iv, data: encrypted.data
       });
-      await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments`, {
+      const saved = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({body})
       });
+      if (!Number.isSafeInteger(saved?.id) || saved.id <= 0)
+        throw new Error("GitHub bekreftet ikke lagret hendelse; behold i sendekø.");
       workspace.outbox = workspace.outbox.filter(item => item.id !== event.id);
       persist({sync: false, renderNow: false});
     }
