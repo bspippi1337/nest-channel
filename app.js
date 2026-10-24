@@ -171,7 +171,7 @@ function acknowledgeLocalEvent(id) {
   persist({sync: false, renderNow: false});
   return true;
 }
-window.NESTTransport = Object.freeze({applyEvent, acknowledgeLocalEvent});
+window.NESTTransport = Object.freeze({applyEvent: applyTransportEvent, acknowledgeLocalEvent});
 function persist({ sync = true, renderNow = true } = {}) {
   workspace.version = 3;
   workspace.logicalCounter = logicalCounter;
