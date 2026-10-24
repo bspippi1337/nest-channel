@@ -9,7 +9,7 @@ const read=p=>fs.readFileSync(path.resolve(__dirname,"..",p),"utf8");
 test("strict Android mode permits secure single-chat transport but rejects old snapshots",()=>{
  const native=read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
  const bridge=native.slice(native.indexOf("private final class LocalBridge"),native.indexOf("@JavascriptInterface public void addPeer(",native.indexOf("private final class LocalBridge")));
- assert.match(bridge,/void start\(\)\s*\{\s*\/\/ Strict profile permits per-message local chat/);
+ assert.match(bridge,/setLegacyWorkspaceAllowed\(!isHighThreatStrict\(\)\)/);
  assert.match(bridge,/if \(isHighThreatStrict\(\)\) throw new SecurityException\("Ingen forward secrecy for gamle arbeidsflatesnapshots/);
  assert.match(bridge,/int sendChat\(String json\)/);
  assert.match(native,/onChat\(String json\)/);
@@ -61,4 +61,19 @@ test("new transport changes no signing readiness flags and does not claim full F
  assert.match(gh,/requireForwardSecretTransport\?\.\("github_workspace"\)/);
  const app=read("app.js");
  assert.doesNotMatch(app.slice(app.indexOf("window.NEST_ReceiveLocalChat"),app.indexOf("function renderChat()")),/publishWorkspace/);
+});
+
+test("native strict mode rejects old workspace snapshots before decrypting or advancing ratchet",()=>{
+ const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
+ assert.match(java,/void setLegacyWorkspaceAllowed\(boolean allowed\)/);
+ assert.match(java,/if \(!legacyWorkspaceAllowed\) throw new SecurityException/);
+ const start=java.indexOf('if ("secure_workspace".equals(type) && !legacyWorkspaceAllowed) return;');
+ const advance=java.indexOf("byte[] candidate = peer.receiveChain.clone();",start);
+ assert.ok(start>=0 && advance>start);
+});
+test("authenticated peer identity replaces untrusted sender clientId on local chat receive",()=>{
+ const native=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
+ assert.match(native,/chat\.put\("clientId", sender\)/);
+ assert.match(native,/listener\.onChat\(chat\.toString\(\)\)/);
+ assert.match(native,/display \+ " · " \+ sender\.substring/);
 });
