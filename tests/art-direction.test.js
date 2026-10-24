@@ -97,7 +97,8 @@ test("four mobile header actions stay on one row including at narrow widths",()=
  for(let i=1;i<=4;i++)assert.match(css,new RegExp("grid-column: "+i+" !important"));
  assert.match(css,/grid-row: 1 !important/);
  assert.match(css,/white-space: nowrap !important/);
- assert.match(wiz,/Oppsett 0\.9\.3/);
+ assert.match(wiz,/tag\("button", "Oppsett"/);
+ assert.match(wiz,/aria-label", "Åpne oppsett for NEST 0\.9\.3"/);
  assert.match(risk,/Høyrisiko PÅ/);
 });
 test("all 4 editorial storyboards show two people with two visible phones",()=>{
