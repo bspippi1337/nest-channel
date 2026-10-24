@@ -212,7 +212,8 @@ function applyTransportEvent(event) {
       if(NESTCore.compareClock(data.clock,task.fieldUpdatedAt[field])>=0){
         const previous=task[field];
         task[field]=data.value;
-        if(field==="dependsOn" && NESTCore.wouldCreateCycle(workspace.tasks,task.id,data.value.find(x=>x===task.id)||""))
+        if(field==="dependsOn" && data.value.some(dependency =>
+             NESTCore.wouldCreateCycle(workspace.tasks,task.id,dependency)))
           task[field]=previous;
         else task.fieldUpdatedAt[field]=data.clock;
       }
