@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#08100c">
+  <meta name="theme-color" content="#101b1b">
   <title>NEST Channel</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -15,12 +15,16 @@
   <link rel="stylesheet" href="security-v07.css">
   <link rel="stylesheet" href="nest-wizard-v091.css">
   <link rel="stylesheet" href="nest-ptt-v091.css">
+  <link rel="stylesheet" href="art-direction.css">
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <p class="eyebrow">BETINGET OPPGAVEBEHANDLING</p>
-      <h1>NEST <span>CHANNEL</span></h1>
+    <div class="brand-signature">
+      <img src="icon.svg" alt="" aria-hidden="true" class="brand-mark" width="52" height="52">
+      <div>
+        <p class="eyebrow">BLCKSWAN / SYSTEMS</p>
+        <h1>NEST <span>CHANNEL</span></h1>
+      </div>
     </div>
     <div class="topbar-actions">
       <div class="connection-state">
@@ -33,11 +37,20 @@
   </header>
 
   <main class="app-frame">
+    <section class="nest-intro" aria-label="Velkommen til NEST Channel">
+      <div class="nest-intro-copy">
+        <p class="nest-intro-kicker"><span class="kicker-star" aria-hidden="true">✳</span> DIN ARBEIDSFLYT / NEST 0.9.3 BETA</p>
+        <h2>Én tanke. <em>Neste steg.</em></h2>
+        <p>Oppgaver, avhengigheter og samtaler. Samlet rundt det som faktisk skal skje nå.</p>
+        <span class="nest-beta-label">Eksperimentell programvare · Ikke sikkerhetssertifisert</span>
+      </div>
+      <img class="nest-intro-art" src="nest-orbit.svg" alt="Abstrakt illustrasjon av sammenkoblede steg i arbeidsflyten" width="560" height="360">
+    </section>
     <section class="connect-card github-connect-card">
       <div class="github-auth-row">
         <div>
-          <p class="eyebrow">INTERNETTSYNK VIA GITHUB</p>
-          <h2>Samme kanal, uansett nettverk.</h2>
+          <p class="eyebrow">01 / FORBINDELSE</p>
+          <h2>Din kanal. Ditt tempo.</h2>
           <p class="mode-description">GitHub bærer bare krypterte pakker. Kanalpassordet blir på telefonene.</p>
         </div>
         <div class="github-account">
@@ -86,6 +99,7 @@
 
     <section class="workspace">
       <div class="tasks-pane">
+        <div class="pane-intro"><p class="eyebrow">02 / ARBEIDSBORD</p><h2>Det som betyr noe, nå.</h2><p>Start med det som er klart. La resten vente til det er riktig.</p></div>
         <form id="taskForm" class="quick-task">
           <input id="taskTitle" required maxlength="160" placeholder="Ny oppgave">
           <input id="taskAssignee" maxlength="60" placeholder="Ansvarlig">
@@ -111,10 +125,10 @@
       <aside class="channel-pane">
         <div class="channel-heading">
           <div>
-            <p class="eyebrow">KANAL</p>
+            <p class="eyebrow">03 / SAMTALER</p>
             <h2 id="channelHeading">Ikke tilkoblet</h2>
           </div>
-          <span id="encryptedBadge" class="encrypted-badge">🔒 E2EE</span>
+          <span id="encryptedBadge" class="encrypted-badge" title="Kryptert innhold, men ikke sertifisert anonymitet">KRYPT. BETA</span>
         </div>
         <div id="chatList" class="chat-list">
           <p class="muted">Koble til en kanal for å snakke med kollegaene.</p>
@@ -173,9 +187,10 @@
     <article class="about-content">
       <header class="about-hero">
         <button id="closeAboutButton" class="about-close" type="button" aria-label="Lukk">×</button>
-        <p class="about-kicker">NEST CHANNEL · BETINGET OPPGAVEBEHANDLING</p>
+        <p class="about-kicker">BLCKSWAN / DESIGN FOR THE NEXT STEP</p>
         <h2 id="aboutTitle">Riktig oppgave.<br>Riktig person.<br><span>Riktig tidspunkt.</span></h2>
-        <p class="about-lead">NEST gjør arbeidsrekkefølgen synlig. Teamet slipper å gjette hva som kan startes, hva som må vente, og hva som blir neste naturlige steg.</p>
+        <p class="about-lead">Klarhet er ikke en luksus. Det er infrastrukturen under alt godt arbeid. NEST gjør rekkefølge, ansvar og neste handling synlig, uten å gjøre dagen mer komplisert.</p>
+        <figure class="about-feature-art"><img src="nest-orbit.svg" width="960" height="617" alt="Et stjernekart av oppgaver som kobles sammen gjennom tid og ansvar"><figcaption>FORBINDELSE / REKKEFØLGE / FREMDRIFT</figcaption></figure>
       </header>
 
       <section class="about-manifesto">
@@ -190,6 +205,7 @@
           <p class="about-overline">LÆR MODELLEN PÅ ETT MINUTT</p>
           <h3>Se oppgaver som dører.</h3>
         </div>
+        <img class="about-flow-art" src="nest-flow.svg" width="1120" height="380" loading="lazy" alt="Illustrasjon av tre etterfølgende oppgaver, fra klar til venter og ferdig">
         <div class="door-grid">
           <article class="door-card ready-door"><span class="door-number">01</span><strong>Klar</strong><p>Døren er åpen. Oppgaven kan utføres nå.</p></article>
           <article class="door-card waiting-door"><span class="door-number">02</span><strong>Venter</strong><p>Døren er stengt. Appen viser nøyaktig hva som må bli ferdig først.</p></article>
@@ -214,23 +230,29 @@
         <div class="principle"><span>04</span><div><strong>Arbeid fra «Klar»</strong><p>Den visningen er teamets operative arbeidsbord. Resten kan vente fordi det skal vente.</p></div></div>
       </section>
 
+      <section class="about-trust" aria-labelledby="trustTitle">
+        <p class="about-overline">SIKKERHET UTEN SUPERLATIVER</p>
+        <h3 id="trustTitle">Tilliten begynner med å vise grensene.</h3>
+        <p>NEST er en eksperimentell Android-beta med krypterte data og en høyrisikoprofil som begrenser enkelte lekkasjer. Det er ikke dokumentert anonymitet, forward secrecy eller uavhengig sikkerhetssertifisering. Ikke bruk denne utgaven for sårbare kilder, militær kommunikasjon eller situasjoner der en kompromittert telefon kan få alvorlige konsekvenser.</p>
+        <div class="trust-grid"><span>Privat transportlager som standard</span><span>Android-beskyttet lokal lagring</span><span>Uavhengig revisjon gjenstår</span></div>
+      </section>
       <section class="about-product-note">
         <p class="about-overline">FØLGESKRIV</p>
         <h3>For små team som vil bruke mindre tid på koordinering og mer tid på å fullføre.</h3>
         <p>NEST Channel samler betinget oppgavebehandling og to synkveier i én app.</p>
-        <p>v0.7.0 styrker identitet, synkbootstrap og konfliktklokker.</p>
+        <p>v0.9.3 er en eksperimentell betaversjon under sikkerhetsgjennomgang. 0.9.2 er siste hovedrelease.</p>
         <p class="about-positioning">Dette er ikke prosjektstyring forkledd som et regneark. Det er en enkel arbeidsmåte som lærer teamet å se sammenhengen mellom <em>først</em>, <em>så</em> og <em>nå</em>.</p>
       </section>
 
       <footer class="about-footer">
-        <div><strong>NEST Channel</strong><span>Versjon 0.7.0 · BLCKSWAN</span></div>
+        <div><strong>NEST Channel</strong><span>Versjon 0.9.3 · Security beta · BLCKSWAN</span></div>
         <button id="aboutStartButton" class="primary" type="button">Se hva som er klart nå</button>
       </footer>
     </article>
   </dialog>
 
   <template id="emptyTemplate">
-    <div class="empty"><strong>Ingen oppgaver her.</strong><span>Legg inn neste konkrete handling.</span></div>
+    <div class="empty"><img src="nest-empty.svg" alt="" aria-hidden="true" width="230" height="127"><strong>Her er det plass til neste steg.</strong><span>Legg til en oppgave, så finner NEST rekkefølgen.</span></div>
   </template>
 
   <script src="storage-sandbox.js"></script>

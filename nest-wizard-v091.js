@@ -308,6 +308,13 @@
     const dialog = $("nest91-dialog");
     if (!dialog) return;
     const body = $("nest91-body"); body.replaceChildren(); body.scrollTop = 0;
+    const steps = ["welcome", "account", "auth", "repository", "channel", "invite", "import", "access", "ready"];
+    const phase = state.step === "import" || state.step === "access" ? 5 : Math.max(0, steps.indexOf(state.step));
+    const progress = tag("div", "", "nest91-progress", body);
+    progress.setAttribute("role", "progressbar"); progress.setAttribute("aria-label", "Fremdrift i kanaloppsettet");
+    progress.setAttribute("aria-valuemin", "0"); progress.setAttribute("aria-valuemax", "8");
+    progress.setAttribute("aria-valuenow", String(Math.min(8, phase)));
+    for (let i = 0; i < 8; i++) { const part = tag("span", "", i <= phase ? "active" : "", progress); part.setAttribute("aria-hidden", "true"); }
     $("nest91-title").textContent = ({
       welcome: "To telefoner. Én kryptert kanal.", account: "GitHub-konto på telefonen",
       auth: "Koble GitHub til NEST", repository: "Velg transportlager",

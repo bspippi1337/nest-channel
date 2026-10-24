@@ -1,3 +1,12 @@
+## NEST Channel / BLCKSWAN Studio visual direction (0.9.3 security candidate)
+
+The entire user-facing application has been re-art-directed for the next beta: a single design system that spans the header, campaign masthead, GitHub/local connection flows, taskboard, messaging, PTT, pairing, setup wizard, mobile navigation, notifications, task detail and About. The design language is mineral green / warm ivory / quiet brass, an editorial display serif with a disciplined system sans UI, custom local SVG illustrations, restrained borders, touch-friendly controls and safe-area-aware Android layouts.
+
+- Hero artwork `nest-orbit.svg` maps dependencies as a network of three waypoints; `nest-flow.svg` illustrates ready/wait/done; `nest-empty.svg` supports honest empty states; `icon.svg` is the vector identity.
+- All visuals ship locally, with no remote images, fonts or analytics.
+- Illustrated About includes the purpose, door model, concrete example, trust limitations and correct 0.9.3 beta status.
+- Visual improvements do **not** change cryptography, Android app ID, versionCode, signing key or release acceptance gates. This is not a claim of high-assurance security.
+
 ## Experimental high-threat security branch (0.9.3 candidate, versionCode 15)
 
 Android versionCode is incremented to 15; original app ID and 0.9.0 signing certificate identity are preserved in the protected release workflow. **Do not merge or ship to Play until independent review and two-phone tests pass.** 0.9.3 source hardens native WebView network egress and block unknown asset requests, checks private repo visibility before encrypted uploads, refuses risky browser/unsigned storage paths in high-threat profile and avoids putting channel passwords into WebView sessionStorage in the APK. These are risk reductions, not anonymity or forward secrecy.

@@ -300,6 +300,11 @@
     mainButton.type = "button"; mainButton.textContent = "Aktiver live radio";
     mainButton.className = "nest91-radio-start";
     mainButton.onclick = () => active ? turnOff() : turnOn();
+    if (window.NESTSecurity?.isStrict()) {
+      mainButton.disabled = true;
+      mainButton.textContent = "Radio sperret i høyrisikoprofil";
+      statusNode.textContent = "Direkte talelyd kan avsløre IP-adresser. Endre sikkerhetsprofil kun hvis du aksepterer risikoen.";
+    }
     pttButton = document.createElement("button");
     pttButton.type = "button"; pttButton.textContent = "HOLD INNE · SNAKK";
     pttButton.className = "nest91-radio-talk";
