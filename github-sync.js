@@ -41,6 +41,8 @@
   let deviceFlow = null;
   let pollFailures = 0;
   let syncFailures = 0;
+  let fsChannel = null; // independent one-time-prekey GitHub transport
+  const FS_MARKER = "<!-- NEST-FS1 -->";
   const seenCommentIds = new Set();
   const chunkGroups = new Map();
 
@@ -304,6 +306,132 @@
 
   function roomMarker() { return `<!-- NEST-ROOM:${roomId} -->`; }
 
+  async function findOrCreateFsIssue() {
+    const marker = `<!-- NEST-FS-ROOM:${roomId} -->`;
+    const root = `/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`;
+    const issues = await api(root + "/issues?state=open&per_page=100&sort=updated&direction=desc");
+    const match = issues.find(x => !x.pull_request && String(x.body || "").includes(marker));
+    if (match) return match.number;
+    const created = await api(root + "/issues", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({title:"[NEST FS1] "+roomId.slice(0,12),
+        body:marker+"\nIsolated FS1 one-time-prekey message transport. No historical snapshots."})
+    });
+    if (!created?.number) throw Error("Kunne ikke opprette FS-kanal");
+    return created.number;
+  }
+
+  async function fsPost(item) {
+    const current=await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
+    window.NESTSecurity?.requirePrivateRepo(current);
+    const body = FS_MARKER + "\n" + JSON.stringify(item);
+    if (body.length > 14000) throw Error("FS1 melding er for stor");
+    const result = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({body})
+    });
+    if (!Number.isSafeInteger(result?.id) || result.id <= 0)
+      throw Error("GitHub bekreftet ikke kryptert sending");
+    rememberComment(result.id);
+    return result;
+  }
+
+  async function receiveFsComment(comment) {
+    if (!comment?.id || seenCommentIds.has(comment.id)) return;
+    if (typeof comment.body !== "string" || !comment.body.startsWith(FS_MARKER)) {
+      rememberComment(comment.id); return;
+    }
+    let item;
+    try { item = JSON.parse(comment.body.slice(FS_MARKER.length).trim()); }
+    catch { rememberComment(comment.id); return; }
+    try {
+      if (item.kind === "bundle") {
+        const added = await fsChannel.acceptBundle(item);
+        if (added) {
+          el.peerCount.textContent = "GitHub FS1 · 2 telefoner";
+          // Once peer identity is pinned, bootstrap secret is not needed by FS1.
+          el.channelPassword.value = "";
+          secretDelete("channel_password");
+          await fsPublishPendingEvents();
+        }
+      } else if(item.kind === "message") {
+        const event = await fsChannel.openMessage(item);
+        if (event) {
+          window.NESTTransport?.applyEvent(event);
+          if (await fsChannel.replenish()) await fsPost(await fsChannel.bundle());
+        }
+      }
+    } catch (err) {
+      setConnectionState("connecting","FS1-kontroll avviste ugyldig melding");
+    }
+    rememberComment(comment.id);
+  }
+
+  async function fsFetchHistory() {
+    const root = `/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`;
+    const issue = await api(root + "/issues/" + issueNumber);
+    const count = Math.max(0, Number(issue?.comments) || 0);
+    const recent = [], lastPage = Math.max(1,Math.ceil(count/100));
+    let newest = "";
+    for(let page = Math.max(1,lastPage-9);page<=lastPage;page++){
+      const comments = await api(root + "/issues/" + issueNumber + "/comments?per_page=100&page=" + page);
+      recent.push(...comments);
+    }
+    recent.sort((a,b)=>(a.id||0)-(b.id||0));
+    for(const comment of recent){
+      const stamp = String(comment.created_at||"");
+      if(stamp>newest)newest=stamp;
+      await receiveFsComment(comment);
+    }
+    const anchor = newest ? Date.parse(newest) : Date.now();
+    lastPollAt = new Date((Number.isFinite(anchor)?anchor:Date.now())-1000).toISOString();
+  }
+
+  async function fsPublishPendingEvents() {
+    if (!fsChannel?.paired()) return;
+    for(const event of [...(workspace.outbox||[])]){
+      if(!["chat","task_comment"].includes(event.type))continue;
+      const packet=await fsChannel.seal(event);
+      await fsPost(packet);
+      window.NESTTransport?.acknowledgeLocalEvent(event.id);
+    }
+  }
+
+  async function connectGithubFs(channel,nickname,password) {
+    window.NESTSecurity?.requireNative();
+    if(password) window.NESTSecurity.requireStrongChannelKey(password);
+    const repoData = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
+    window.NESTSecurity.requirePrivateRepo(repoData);
+    roomId=bytesToHex(await sha256Bytes("nest-fs-room:"
+      +repoOwner.toLowerCase()+"/"+repoName.toLowerCase()+":"
+      +channel.trim().toLocaleLowerCase("nb")));
+    const stateKey = "fs_state_" + roomId;
+    fsChannel = new window.NESTGitHubFS.FSChannel({
+      room:roomId,
+      load:()=>{
+        const value=secretLoad(stateKey);
+        if (window.NativeHost?.hasSecret?.(stateKey) && !value)
+          throw Error("FS1 Keystore kan ikke åpnes; eksisterende nøkler må ikke overskrives.");
+        return value;
+      },
+      save:v=>secretSave(stateKey,v)
+    });
+    await fsChannel.open(password);
+    issueNumber=await findOrCreateFsIssue();
+    window.NEST_GITHUB_CONNECTED=true;
+    pollFailures=0;syncFailures=0;
+    el.disconnectButton.disabled=false;el.chatInput.disabled=false;
+    el.chatForm.querySelector("button").disabled=false;
+    el.channelHeading.textContent="#"+channel+" · FS1";
+    el.peerCount.textContent="GitHub FS1 · venter på telefon 2";
+    // Publish our authenticated ECDH bundle before reading history.
+    await fsPost(await fsChannel.bundle());
+    await fsFetchHistory();
+    await fsPublishPendingEvents();
+    setConnectionState("online","GitHub FS1 · krypterte enkeltmeldinger");
+    pollComments();
+  }
+
   async function findOrCreateIssue() {
     const cacheKey = `${ISSUE_KEY_PREFIX}${repoOwner}/${repoName}:${roomId}`;
     const cached = Number(localStorage.getItem(cacheKey));
@@ -373,6 +501,7 @@
   }
 
   async function receiveComment(comment) {
+    if (fsChannel) { await receiveFsComment(comment); return; }
     if (!comment?.id || seenCommentIds.has(comment.id)) return;
     rememberComment(comment.id);
     const chunk = parseEncryptedComment(comment.body);
@@ -464,7 +593,7 @@
       const anchor = newest ? Date.parse(newest) : Date.now();
       lastPollAt = new Date((Number.isFinite(anchor) ? anchor : Date.now()) - 1000).toISOString();
       pollFailures = 0;
-      setConnectionState("online", "GitHub-synk aktiv");
+      setConnectionState("online",fsChannel?"GitHub FS1 · kryptert":"GitHub-synk aktiv");
     } catch (error) {
       pollFailures++;
       delay = retryDelay(pollFailures, error?.retryAfterMs);
@@ -550,9 +679,14 @@
   async function attemptPublish() {
     if (!window.NEST_GITHUB_CONNECTED) return;
     try {
-      await publishWorkspace();
-      await publishPendingEvents();
-      setConnectionState("online", "GitHub-synk aktiv");
+      if (fsChannel) {
+        await fsPublishPendingEvents();
+        setConnectionState("online","GitHub FS1 · aktiv");
+      } else {
+        await publishWorkspace();
+        await publishPendingEvents();
+        setConnectionState("online", "GitHub-synk aktiv");
+      }
     } catch (error) {
       syncFailures++;
       const delay = retryDelay(syncFailures, error?.retryAfterMs);
@@ -575,10 +709,14 @@
     const password = el.channelPassword.value || secretLoad("channel_password");
     if (!channel) return alert("Skriv et kanalnavn.");
     if (!nickname) return alert("Skriv et kallenavn.");
-    if (password.length < 8) return alert("Kanalpassordet må ha minst 8 tegn.");
     let parsed;
     try { parsed = parseRepo(el.relayUrl.value); }
     catch (error) { return alert(error.message); }
+    const fsHash=bytesToHex(await sha256Bytes("nest-fs-room:"
+      +parsed.owner.toLowerCase()+"/"+parsed.repo.toLowerCase()+":"
+      +channel.trim().toLocaleLowerCase("nb")));
+    if (password.length < 8 && !(window.NESTSecurity?.isStrict() && secretLoad("fs_state_" + fsHash)))
+      return alert("Kanalpassordet må ha minst 8 tegn ved første oppsett.");
     repoOwner = parsed.owner;
     repoName = parsed.repo;
     connectedNickname = nickname;
@@ -587,6 +725,10 @@
     el.connectButton.disabled = true;
     setConnectionState("connecting", "Finner kryptert GitHub-kanal …");
     try {
+      if (window.NESTSecurity?.isStrict()) {
+        await connectGithubFs(channel,nickname,password);
+        return;
+      }
       window.NESTSecurity?.requireForwardSecretTransport?.("github_workspace");
       if (window.NESTSecurity?.isStrict()) {
         window.NESTSecurity.requireNative();
@@ -619,6 +761,7 @@
 
   function disconnectGithub() {
     window.NEST_GITHUB_CONNECTED = false;
+    fsChannel=null;
     clearTimeout(pollTimer);
     clearTimeout(syncTimer);
     pollTimer = null;
@@ -640,7 +783,17 @@
   async function maybeAutoConnect() {
     if (!token || window.NEST_GITHUB_CONNECTED) return;
     const savedPassword = secretLoad("channel_password");
-    if (savedPassword && el.channelName.value.trim() && el.nickname.value.trim()) {
+    let fsSaved = false;
+    if (window.NESTSecurity?.isStrict() && el.channelName.value.trim()) {
+      try {
+        const repo=parseRepo(el.relayUrl.value);
+        const hash=bytesToHex(await sha256Bytes("nest-fs-room:"
+          +repo.owner.toLowerCase()+"/"+repo.repo.toLowerCase()+":"
+          +el.channelName.value.trim().replace(/^#/,"").toLocaleLowerCase("nb")));
+        fsSaved=Boolean(secretLoad("fs_state_"+hash));
+      } catch {}
+    }
+    if ((savedPassword || fsSaved) && el.channelName.value.trim() && el.nickname.value.trim()) {
       el.channelPassword.value = savedPassword;
       await connectGithub();
     }

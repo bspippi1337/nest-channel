@@ -256,7 +256,7 @@ public final class MainActivity extends Activity {
         if (key == null) return false;
         if ("github_token".equals(key) || "github_client_id".equals(key)
                 || "channel_password".equals(key)) return true;
-        return key.matches("workspace_v091_\\.(?:offline|[a-f0-9]{64})");
+        return key.matches("workspace_v091_\\.(?:offline|[a-f0-9]{64})") || key.matches("fs_state_[a-f0-9]{64}");
     }
 
     private final class NativeBridge {
