@@ -44,7 +44,7 @@ test("encrypted data survives failures; never overwrite unreadable ciphertext", 
 test("risk profile is bundled and cache version incremented", () => {
   for (const p of ["index.html", "service-worker.js", "android/app/build.gradle"])
     assert.match(read(p), /high-threat\.js/, p);
-  assert.match(read("service-worker.js"), /nest-channel-v15/);
+  assert.match(read("service-worker.js"), /nest-channel-v20/);
 });
 
 test("JavaScript may not query private native-only OAuth PKCE verifier or state", () => {

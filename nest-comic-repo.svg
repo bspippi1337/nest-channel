@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 250" role="img" aria-label="To personer med telefoner får tilgang til et privat samarbeidsområde">
+<title>To personer med telefoner får tilgang til et privat samarbeidsområde</title>
+<style>
+.ink{fill:none;stroke:#ecf4e5;stroke-width:3.1;stroke-linecap:round;stroke-linejoin:round}
+.pale{fill:none;stroke:#80b09b;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+.mint{fill:none;stroke:#bcecca;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.gold{fill:none;stroke:#e4c18c;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.panel{fill:#0a241c;stroke:#bcecca;stroke-width:2.6}
+.fill{fill:#d9ead5}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;stroke-dashoffset:0!important;opacity:1!important}}
+</style>
+<style>.repo-lock{animation:secure .9s ease-out 1 both}@keyframes secure{from{opacity:.4;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}</style>
+<path class="pale" d="M15 237Q320 246 625 237"/>
+<g class="person" transform="translate(108 0) scale(1 1)">
+  <circle class="ink" cx="0" cy="66" r="25"/>
+  <path class="ink" d="M-10 60l-1 3m22-2l-1 3M-7 85Q-2 88 6 84M-3 91L-6 151 M-6 152L-37 213 M-6 152L22 213M-3 114L-33 142 M-4 113L18 136"/>
+  <path class="pale" d="M-18 46q-1-14 10-17m17 0q11 4 12 15"/>
+  <g class="phone">
+    <rect class="panel" x="14" y="123" width="35" height="59" rx="7" transform="rotate(-9 14 123)"/>
+    <path class="pale" d="M22 137l18-3M22 148l18-3" />
+    <circle class="fill" cx="30" cy="171" r="2.2"/>
+  </g>
+  </g><g class="person" transform="translate(532 0) scale(-1 1)">
+  <circle class="ink" cx="0" cy="66" r="25"/>
+  <path class="ink" d="M-10 60l-1 3m22-2l-1 3M-7 85Q-2 88 6 84M-3 91L-6 151 M-6 152L-37 213 M-6 152L22 213M-3 114L-33 142 M-4 113L18 136"/>
+  <path class="pale" d="M-18 46q-1-14 10-17m17 0q11 4 12 15"/>
+  <g class="phone">
+    <rect class="panel" x="14" y="123" width="35" height="59" rx="7" transform="rotate(-9 14 123)"/>
+    <path class="pale" d="M22 137l18-3M22 148l18-3" />
+    <circle class="fill" cx="30" cy="171" r="2.2"/>
+  </g>
+  </g>
+
+<path class="pale" d="M175 131Q226 101 264 129M379 128Q414 107 463 130" stroke-dasharray="3 8"/>
+<g class="repo-lock"><rect class="panel" x="265" y="116" width="111" height="86" rx="12"/>
+ <path class="ink" d="M283 116V96a37 37 0 0 1 74 0v20"/>
+ <path class="pale" d="M300 116V96a20 20 0 0 1 40 0v20"/>
+ <circle class="fill" cx="320" cy="154" r="10"/><path class="pale" d="M320 164v15"/>
+</g>
+
+</svg>
