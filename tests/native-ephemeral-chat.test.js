@@ -22,7 +22,7 @@ test("native v7 message frame contains only one incoming chat and never a stored
  assert.match(java,/activeScheduler\.execute\(\(\) -> sendChatNow\(json\)\)/);
  assert.match(java,/sendEncryptedToPeer\(json, peer, "secure_chat"\)/);
  assert.match(java,/chunk\.put\("type", messageType\)/);
- assert.match(java,/listener\.onChat\(workspace\)/);
+ assert.match(java,/listener\.onChat\(chat\.toString\(\)\)/);
  assert.match(java,/listener\.onWorkspace\(workspace\)/);
  assert.match(java,/Assembly\(total, iv, sequence, type\)/);
  assert.match(java,/assembly\.type\.equals\(type\)/);
