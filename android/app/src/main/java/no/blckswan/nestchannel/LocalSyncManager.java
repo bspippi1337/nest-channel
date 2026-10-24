@@ -95,6 +95,12 @@ final class LocalSyncManager {
     private final String identityFingerprint;
 
     private volatile String lastWorkspace = "";
+    private volatile boolean legacyWorkspaceAllowed = false;
+
+    void setLegacyWorkspaceAllowed(boolean allowed) {
+        legacyWorkspaceAllowed = allowed;
+        if (!allowed) lastWorkspace = "";
+    }
     private volatile KeyPair sessionKeyPair;
     private volatile String sessionPublicBase64 = "";
     private volatile PairingOffer activeOffer;
@@ -215,6 +221,7 @@ final class LocalSyncManager {
     }
 
     void sendWorkspace(String json) {
+        if (!legacyWorkspaceAllowed) throw new SecurityException("Historiske snapshots er deaktivert");
         if (json == null || json.isBlank()) return;
         lastWorkspace = json;
         ScheduledExecutorService activeScheduler = scheduler;
@@ -513,6 +520,7 @@ final class LocalSyncManager {
             Peer peer = peers.get(sender);
             if (peer == null || !peer.trusted || peer.receiveChain == null) return;
             if (!"secure_workspace".equals(type) && !"secure_chat".equals(type)) return;
+            if ("secure_workspace".equals(type) && !legacyWorkspaceAllowed) return;
             final String epoch = message.optString("epoch", "");
             if (epoch.isBlank() || !epoch.equals(peer.epoch)) return;
             long sequence = message.optLong("seq", 0L);
@@ -570,7 +578,14 @@ final class LocalSyncManager {
                 if (!chat.optString("id", "").matches("[0-9a-fA-F-]{36}")
                         || chat.optString("text", "").isBlank() || chat.optString("text", "").length() > 4000)
                     return;
-                listener.onChat(workspace);
+                // Display names and client IDs come from ciphertext and must NOT
+                // be mistaken for device identity. Bind attribution to the
+                // cryptographically verified peer node instead.
+                String display = chat.optString("author", "Ukjent");
+                if (display.length() > 100) display = "Ukjent";
+                chat.put("author", display + " · " + sender.substring(0, Math.min(8, sender.length())));
+                chat.put("clientId", sender);
+                listener.onChat(chat.toString());
             } else {
                 listener.onWorkspace(workspace);
             }
