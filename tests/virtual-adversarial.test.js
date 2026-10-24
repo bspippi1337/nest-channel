@@ -88,7 +88,7 @@ function actualGithubFragmentEngine(){
   COMMENT_MARKER:"<!-- NEST-E2EE-V1 -->",roomId:"R",MAX_CHUNK:44000,
   MAX_ENVELOPE_PARTS:128,MAX_PENDING_GROUPS:8,MAX_PENDING_GROUP_BYTES:2_500_000,
   MAX_SEEN_COMMENTS:8192,
-  seenCommentIds:new Set(),chunkGroups:new Map(),
+  seenCommentIds:new Set(),chunkGroups:new Map(),fsChannel:null,
   decryptEnvelope:async e=>({kind:"workspace",workspace:{joined:e.data,id:e.id}}),
   mergeWorkspace:w=>merged.push(w),setConnectionState:()=>{}
  };
