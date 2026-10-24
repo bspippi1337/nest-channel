@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
+import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -21,6 +22,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -79,6 +81,9 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Prevent ordinary screenshots, screen recordings and Recents thumbnails.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        WebView.setWebContentsDebuggingEnabled(false);
         getWindow().setStatusBarColor(Color.rgb(7, 16, 12));
         getWindow().setNavigationBarColor(Color.rgb(7, 16, 12));
         secureStore = new SecureStore(this);
@@ -140,7 +145,10 @@ public final class MainActivity extends Activity {
         // PTT is enabled only after a visible explicit radio-activation gesture.
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(true);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
         settings.setSupportMultipleWindows(false);
@@ -226,6 +234,9 @@ public final class MainActivity extends Activity {
         public void saveSecret(String key, String value) { secureStore.put(key, value); }
 
         @JavascriptInterface
+        public boolean hasSecret(String key) { return secureStore.contains(key); }
+
+        @JavascriptInterface
         public String loadSecret(String key) {
             if ("github_token".equals(key) && "local".equals(modePreferences.getString("mode", "auto"))) return "";
             return secureStore.get(key);
@@ -282,6 +293,8 @@ public final class MainActivity extends Activity {
             try {
                 Uri uri = Uri.parse(rawUrl);
                 if (!"https".equalsIgnoreCase(uri.getScheme())) return;
+                String host = uri.getHost();
+                if (!"github.com".equalsIgnoreCase(host) && !"chatgpt.com".equalsIgnoreCase(host)) return;
                 startActivity(new Intent(Intent.ACTION_VIEW, uri));
             } catch (Exception ignored) {}
         }

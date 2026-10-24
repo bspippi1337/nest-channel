@@ -38,7 +38,8 @@ final class SecureStore {
             byte[] encrypted = cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
             String stored = Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP)
                     + "." + Base64.encodeToString(encrypted, Base64.NO_WRAP);
-            preferences.edit().putString(key, stored).apply();
+            if (!preferences.edit().putString(key, stored).commit())
+                throw new IllegalStateException("Lagring på enheten feilet");
         } catch (Exception error) {
             throw new IllegalStateException("Kunne ikke lagre hemmelig verdi", error);
         }
@@ -49,20 +50,25 @@ final class SecureStore {
         if (stored == null || stored.isEmpty()) return "";
         try {
             String[] pieces = stored.split("\\.", 2);
-            if (pieces.length != 2) return "";
+            if (pieces.length != 2) throw new IllegalStateException("Ugyldig kryptert verdi");
             byte[] iv = Base64.decode(pieces[0], Base64.NO_WRAP);
             byte[] encrypted = Base64.decode(pieces[1], Base64.NO_WRAP);
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), new GCMParameterSpec(128, iv));
             return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
         } catch (Exception error) {
-            preferences.edit().remove(key).apply();
-            return "";
+            // Never destroy ciphertext when authentication or the Keystore fails.
+            throw new IllegalStateException("Kryptert data kunne ikke leses, originalen er bevart", error);
         }
     }
 
+    synchronized boolean contains(String key) {
+        return key != null && preferences.contains(key);
+    }
+
     synchronized void remove(String key) {
-        preferences.edit().remove(key).apply();
+        if (!preferences.edit().remove(key).commit())
+            throw new IllegalStateException("Sletting av nøkkel feilet");
     }
 
     private SecretKey getOrCreateKey() throws Exception {

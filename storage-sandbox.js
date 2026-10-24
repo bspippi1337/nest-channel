@@ -23,7 +23,9 @@
   Storage.prototype.getItem = function (key) {
     const mapped = mapKey(this, key);
     if (this === localStorage && key === BASE_KEY && nativeStore()) {
+      const exists = nativeStore().hasSecret?.(secureKey) === true;
       const secure = nativeStore().loadSecret(secureKey);
+      if (exists && !secure) throw new Error('NEST encrypted workspace unreadable; no overwrite allowed');
       if (secure) {
         originalRemove.call(this, mapped);
         return secure;
@@ -43,6 +45,8 @@
   Storage.prototype.setItem = function (key, value) {
     const mapped = mapKey(this, key);
     if (this === localStorage && key === BASE_KEY && nativeStore()) {
+      if (nativeStore().hasSecret?.(secureKey) === true && !nativeStore().loadSecret(secureKey))
+        throw new Error('NEST encrypted workspace unreadable; refusing overwrite');
       nativeStore().saveSecret(secureKey, String(value));
       originalRemove.call(this, mapped);
       return;
