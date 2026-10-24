@@ -12,6 +12,9 @@
   const BACKOFF_MAX_MS = 60000;
   const REQUEST_TIMEOUT_MS = 20000;
   const SNAPSHOT_PAGE_LIMIT = 10;
+  const MAX_ENVELOPE_PARTS = 128;
+  const MAX_PENDING_GROUPS = 96;
+  const MAX_SEEN_COMMENTS = 8192;
 
   const ui = {
     clientId: document.getElementById("githubClientId"),
@@ -324,11 +327,26 @@
     return created.number;
   }
 
+  function rememberComment(id) {
+    if (!id) return;
+    seenCommentIds.add(id);
+    while (seenCommentIds.size > MAX_SEEN_COMMENTS)
+      seenCommentIds.delete(seenCommentIds.values().next().value);
+  }
+
   function parseEncryptedComment(body) {
     if (typeof body !== "string" || !body.startsWith(COMMENT_MARKER)) return null;
     try {
       const item = JSON.parse(body.slice(COMMENT_MARKER.length).trim());
-      if (![1, 2].includes(Number(item.v)) || item.room !== roomId || !item.id || !item.data || !item.iv) return null;
+      if (![1, 2].includes(Number(item.v)) || item.room !== roomId
+        || typeof item.id !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(item.id)
+        || typeof item.iv !== "string" || !/^[a-zA-Z0-9+/]{16,32}={0,2}$/.test(item.iv)
+        || typeof item.data !== "string" || !item.data.length || item.data.length > MAX_CHUNK
+        || !/^[a-zA-Z0-9+/=]+$/.test(item.data)
+        || !Number.isSafeInteger(Number(item.total || 1)) || Number(item.total || 1) < 1
+        || Number(item.total || 1) > MAX_ENVELOPE_PARTS
+        || !Number.isSafeInteger(Number(item.part || 1)) || Number(item.part || 1) < 1
+        || Number(item.part || 1) > Number(item.total || 1)) return null;
       return item;
     } catch { return null; }
   }
@@ -344,16 +362,21 @@
       const payload = await decryptEnvelope({ id: group.id, iv: group.iv, data: group.data });
       if (payload.kind !== "workspace") return false;
       mergeWorkspace(payload.workspace);
-      for (const id of group.commentIds || []) seenCommentIds.add(id);
+      for (const id of group.commentIds || []) rememberComment(id);
       return true;
     } catch { return false; }
   }
 
   async function receiveComment(comment) {
     if (!comment?.id || seenCommentIds.has(comment.id)) return;
-    seenCommentIds.add(comment.id);
+    rememberComment(comment.id);
     const chunk = parseEncryptedComment(comment.body);
     if (!chunk) return;
+    if (!chunkGroups.has(chunk.id) && chunkGroups.size >= MAX_PENDING_GROUPS) {
+      // Unauthenticated incomplete envelopes may not exhaust memory.
+      chunkGroups.clear();
+      return;
+    }
     const group = chunkGroups.get(chunk.id) || { total: Number(chunk.total) || 1, iv: chunk.iv, parts: [], received: 0 };
     const index = Math.max(0, Number(chunk.part || 1) - 1);
     if (group.total !== (Number(chunk.total) || 1) || group.iv !== chunk.iv) {
@@ -391,7 +414,7 @@
       const comments = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments?per_page=100&page=${page}`);
       pagesRead++;
       for (const comment of comments) {
-        seenCommentIds.add(comment.id);
+        rememberComment(comment.id);
         const stamp = String(comment.created_at || comment.updated_at || "");
         if (stamp > newestSeenAt) newestSeenAt = stamp;
         const chunk = commentChunk(comment);
