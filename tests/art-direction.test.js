@@ -90,3 +90,17 @@ test("illustration movements are meaningful, short and respect reduced motion", 
  for(const f of svgFiles)assert.ok(wizard.includes(f)||about.includes(f),f);
  assert.match(about,/nest-comic-about\.svg/);
 });
+
+test("phone header keeps offline/security and About/Setup on their own intact rows", () => {
+ const css=read("art-direction.css"), wizard=read("nest-wizard-v091.js"),security=read("high-threat.js");
+ assert.match(css,/grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1\.22fr\)/);
+ assert.match(css,/\.topbar-actions \.connection-state \{[\s\S]*?grid-column: 1; grid-row: 1;/);
+ assert.match(css,/\.topbar-actions \.nest-threat-button \{[\s\S]*?grid-column: 2; grid-row: 1;/);
+ assert.match(css,/\.topbar-actions \.about-button \{ order: 2; grid-column: 1; grid-row: 2;/);
+ assert.match(css,/\.topbar-actions \.nest91-launch \{ order: 3; grid-column: 2; grid-row: 2;/);
+ assert.match(css,/white-space: nowrap !important/);
+ assert.match(css,/overflow-wrap: normal !important/);
+ assert.match(wizard,/Oppsett 0\.9\.3/);
+ assert.doesNotMatch(wizard,/Oppsett 0\.9\.2/);
+ assert.match(security,/Høyrisiko · PÅ/);
+});

@@ -122,7 +122,7 @@
   }
   function parseInvite(raw) {
     if (typeof raw !== "string" || !raw.startsWith("NESTINV1.") || raw.length > 1200) {
-      throw new Error("Dette er ikke en NEST 0.9.2-invitasjon.");
+      throw new Error("Dette er ikke en gyldig NEST-invitasjon.");
     }
     const data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(fromB64url(raw.slice(9))));
     if (window.NESTSecurity?.isStrict()) window.NESTSecurity.requireStrongChannelKey(data.secret);
@@ -356,7 +356,7 @@
       field(body, "NESTINV1-kode", "pendingInvite", { placeholder: "NESTINV1....", maxLength: 1200 });
       button(body, "Kontroller invitasjonen", () => parseInvite(state.pendingInvite || ""), "primary");
       button(body, "Skann QR-kode", () => {
-        if (!native()?.scanInviteQr) throw new Error("QR-skanning krever Android-APK med NEST 0.9.2.");
+        if (!native()?.scanInviteQr) throw new Error("QR-skanning krever Android-appen.");
         native().scanInviteQr();
       });
       button(body, "Tilbake", () => next("welcome"), "ghost");
@@ -455,7 +455,7 @@
   }
   function init() {
     if ($("nest91-dialog")) return;
-    const launcher = tag("button", "Oppsett 0.9.2", "nest91-launch", document.querySelector(".topbar-actions") || document.body);
+    const launcher = tag("button", "Oppsett 0.9.3", "nest91-launch", document.querySelector(".topbar-actions") || document.body);
     launcher.type = "button"; launcher.onclick = () => openWizard("welcome");
     const dialog = tag("dialog", "", "nest91-dialog", document.body); dialog.id = "nest91-dialog"; dialog.setAttribute("aria-labelledby", "nest91-title");
     const article = tag("article", "", "nest91-content", dialog);
