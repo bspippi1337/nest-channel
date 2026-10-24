@@ -163,7 +163,15 @@ function applyTransportEvent(event) {
   persist({ sync: false });
   return true;
 }
-window.NESTTransport = Object.freeze({applyEvent});
+function acknowledgeLocalEvent(id) {
+  if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) return false;
+  const count = workspace.outbox.length;
+  workspace.outbox = workspace.outbox.filter(event => event.id !== id);
+  if (workspace.outbox.length === count) return false;
+  persist({sync: false, renderNow: false});
+  return true;
+}
+window.NESTTransport = Object.freeze({applyEvent, acknowledgeLocalEvent});
 function persist({ sync = true, renderNow = true } = {}) {
   workspace.version = 3;
   workspace.logicalCounter = logicalCounter;
