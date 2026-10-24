@@ -112,7 +112,8 @@ final class LocalSyncManager {
         String storedNodeId = prefs.getString("node_id", "");
         if (storedNodeId == null || storedNodeId.isBlank()) {
             storedNodeId = UUID.randomUUID().toString();
-            prefs.edit().putString("node_id", storedNodeId).apply();
+            if (!prefs.edit().putString("node_id", storedNodeId).commit())
+                throw new IllegalStateException("Enhetsidentitet kunne ikke lagres.");
         }
         nodeId = storedNodeId;
         String model = Build.MODEL == null || Build.MODEL.isBlank() ? "Android" : Build.MODEL.trim();
@@ -259,8 +260,9 @@ final class LocalSyncManager {
     }
 
     void clearTrustedPeers() {
-        trustedPrefs.edit().clear().apply();
+        final boolean stored = trustedPrefs.edit().clear().commit();
         peers.clear();
+        if (!stored) listener.onError("Tilbaketrekking av pålitelige enheter kunne ikke lagres. Lokal sending er stoppet.");
         if (running.get()) rotateLocalSession();
         activeOffer = null;
         pendingPairing = null;
@@ -667,7 +669,9 @@ final class LocalSyncManager {
         decodePublicKey(identity);
         String existing = trustedIdentity(peerNodeId);
         if (!existing.isBlank() && !constantTimeEquals(existing, identity)) throw new SecurityException("En annen identitet er allerede lagret for denne telefonen.");
-        trustedPrefs.edit().putString("peer." + peerNodeId, identity).putString("name." + peerNodeId, name == null ? "" : name).apply();
+        if (!trustedPrefs.edit().putString("peer." + peerNodeId, identity)
+                .putString("name." + peerNodeId, name == null ? "" : name).commit())
+            throw new SecurityException("Kunne ikke lagre betrodd enhetsidentitet.");
     }
 
     private void cleanup() {
