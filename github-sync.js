@@ -374,9 +374,10 @@
     const chunk = parseEncryptedComment(comment.body);
     if (!chunk) return;
     if (!chunkGroups.has(chunk.id) && chunkGroups.size >= MAX_PENDING_GROUPS) {
-      // Unauthenticated incomplete envelopes may not exhaust memory.
-      chunkGroups.clear();
-      return;
+      // Evict one oldest incomplete group, never discard every valid
+      // in-progress snapshot because an attacker sent one extra stub.
+      const oldest = chunkGroups.keys().next().value;
+      if (oldest !== undefined) chunkGroups.delete(oldest);
     }
     const group = chunkGroups.get(chunk.id) || { total: Number(chunk.total) || 1, iv: chunk.iv, parts: [], received: 0, bytes: 0 };
     const index = Math.max(0, Number(chunk.part || 1) - 1);
