@@ -216,3 +216,30 @@ test("what-if #11: release gate is unchanged despite a successful virtual lab",(
  assert.match(java,/private synchronized void sendWorkspaceToPeer/);
  assert.match(java,/private synchronized void receiveMessage/);
 });
+
+test("what-if #12: encrypted GitHub snapshots can still contain old plaintext after local rekey",()=>{
+ const app=read("app.js"),sync=read("github-sync.js");
+ assert.match(app,/workspace\.chat\s*=\s*NESTCore\.mergeById/);
+ assert.match(sync,/encryptPayload\(\{ kind: "workspace", workspace \}\)/);
+ const A=phone("phone-A"),B=phone("phone-B");
+ const workspace={chat:[{id:"old",text:"retained before rotation"}]};
+ const before=seal(A,B,workspace,1);
+ assert.equal(receive(B,A,before,"host"),true);
+ rotate(A);
+ const after=seal(A,B,workspace,1);
+ assert.equal(receive(B,A,after,"host"),true);
+ assert.equal(B.lastMessage.chat[0].text,"retained before rotation");
+ // This is an expected and explicitly documented *negative* security result.
+ assert.match(read("SECURITY-FORWARD-SECRECY-ROADMAP.md"),/does not.*forward secrecy|no forward secrecy|no.*forward secrecy/i);
+});
+test("what-if #13: zero and omitted v2 fragment counts never acquire memory",async()=>{
+ const {ctx,make}=actualGithubFragmentEngine();
+ for(const variant of [
+  {total:0},{part:0},{total:null},{part:null},{total:undefined},
+  {total:1.5},{part:-1},{total:NaN},{total:"2"},{part:"1"}
+ ]){
+  const c=make("bad-counter",1,1,"AAAA",variant);
+  await ctx.receiveComment(c);
+ }
+ assert.equal(ctx.chunkGroups.size,0);
+});
