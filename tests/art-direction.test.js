@@ -33,7 +33,7 @@ test("vector assets are bundled locally; no remote fonts, visual trackers or uns
     assert.ok(gradle.includes(asset), `Not bundled by Gradle: ${asset}`);
     assert.ok(sw.includes(asset), `Not cached for offline: ${asset}`);
   }
-  assert.match(sw, /nest-channel-v21/);
+  assert.match(sw, /nest-channel-v22/);
   assert.doesNotMatch(html, /https?:\/\/(fonts\.|images\.|cdn\.)/);
   for (const name of ["nest-orbit.svg","nest-flow.svg","nest-empty.svg","icon.svg"]) {
     const svg = read(name);
