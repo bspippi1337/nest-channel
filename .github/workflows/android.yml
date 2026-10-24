@@ -49,7 +49,7 @@ jobs:
           grep -q 'maximum 20 registered devices' RELEASE_PLAN.md
           grep -q 'v1.0.0 · Google Play' RELEASE_PLAN.md
           grep -q '\*.p12' .gitignore
-          grep -q 'PROTOCOL_VERSION = 4' android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java
+          grep -q 'PROTOCOL_VERSION = 5' android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java
           grep -q 'nest_local_identity_v1' android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java
           grep -q 'pair_request' android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java
           grep -q 'startGitHubPkce' android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java

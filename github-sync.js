@@ -344,10 +344,13 @@
         || typeof item.iv !== "string" || !/^[a-zA-Z0-9+/]{16,32}={0,2}$/.test(item.iv)
         || typeof item.data !== "string" || !item.data.length || item.data.length > MAX_CHUNK
         || !/^[a-zA-Z0-9+/=]+$/.test(item.data)
-        || !Number.isSafeInteger(Number(item.total || 1)) || Number(item.total || 1) < 1
-        || Number(item.total || 1) > MAX_ENVELOPE_PARTS
-        || !Number.isSafeInteger(Number(item.part || 1)) || Number(item.part || 1) < 1
-        || Number(item.part || 1) > Number(item.total || 1)) return null;
+        // v2 always declares a strict positive integral part and total.
+        // Only legacy v1 may omit them; explicit zero is never a valid value.
+        || (Number(item.v) === 2 && (!Number.isSafeInteger(item.total) || !Number.isSafeInteger(item.part)))
+        || !Number.isSafeInteger(Number(item.total ?? 1)) || Number(item.total ?? 1) < 1
+        || Number(item.total ?? 1) > MAX_ENVELOPE_PARTS
+        || !Number.isSafeInteger(Number(item.part ?? 1)) || Number(item.part ?? 1) < 1
+        || Number(item.part ?? 1) > Number(item.total ?? 1)) return null;
       return item;
     } catch { return null; }
   }
@@ -374,9 +377,10 @@
     const chunk = parseEncryptedComment(comment.body);
     if (!chunk) return;
     if (!chunkGroups.has(chunk.id) && chunkGroups.size >= MAX_PENDING_GROUPS) {
-      // Unauthenticated incomplete envelopes may not exhaust memory.
-      chunkGroups.clear();
-      return;
+      // Evict one oldest incomplete group, never discard every valid
+      // in-progress snapshot because an attacker sent one extra stub.
+      const oldest = chunkGroups.keys().next().value;
+      if (oldest !== undefined) chunkGroups.delete(oldest);
     }
     const group = chunkGroups.get(chunk.id) || { total: Number(chunk.total) || 1, iv: chunk.iv, parts: [], received: 0, bytes: 0 };
     const index = Math.max(0, Number(chunk.part || 1) - 1);

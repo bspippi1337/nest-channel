@@ -74,3 +74,12 @@ Local v4 packets cannot interoperate with local v3 packets. Run the same experim
 - GitHub PR: https://github.com/bspippi1337/nest-channel/pull/25 (draft, unmerged)
 - Build CI: see latest head checks in PR. `npm run check` executes Node tests. Android GitHub Action compiles debug APK.
 - Code review independent of authors, real-device tests, production signing and Play distribution **not** completed. Leave `SECURITY-READINESS.json` blocked.
+
+## Additional adversarial hardening: local v5 and repeatable virtual tests
+
+- Local protocol v5 authenticates an increasing 64-bit `seq` in AES-GCM additional data for each workspace envelope, in addition to the ephemeral ECDH epoch. Old or out-of-order complete snapshots are rejected after a newer authenticated sequence has been accepted. Reordering is handled fail-closed for outdated snapshots; scheduled workspace retransmission eventually delivers current state if the network recovers.
+- A ciphertext header can no longer change a paired device's IP routing: the peer's address is accepted only after an identity-authenticated HELLO or pairing exchange. A replayed valid ciphertext from a different IP therefore cannot redirect outbound traffic.
+- Local receiver, key rotation and sender encryption are mutually synchronized to prevent key-epoch mixups while fragments are emitted; this may reduce throughput during large workspace transfers.
+- Revocation failure now stops local networking and refuses the misleading "cleared" success event. Successful revocation also clears cached manual IP targets.
+- Untrusted GitHub multipart pressure now evicts one oldest incomplete group rather than discarding every in-progress group. Legitimate delivery is still vulnerable to sustained flooding by a GitHub writer; authenticated transport envelopes and sender authorization remain P0.
+- v5 cannot talk to v4 or v3. Both physical test devices must run the same experimental version. Virtual tests cover cryptographic replay, reordering, drop/retry, false-source poison attempts and simulated revocation. These are NOT physical-device or independent-review evidence.
