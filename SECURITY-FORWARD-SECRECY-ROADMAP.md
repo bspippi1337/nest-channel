@@ -96,3 +96,17 @@ Local v4 packets cannot interoperate with local v3 packets. Run the same experim
 Sources: https://signal.org/docs/specifications/doubleratchet/ ; https://www.rfc-editor.org/rfc/rfc9420 ; https://github.com/signalapp/libsignal
 
 **Critical limitation for v6:** The temporary ECDH private key remains live until the periodic rotation. An attacker extracting that private key and the remote public key can recompute the *epoch root* and message chains, despite per-message HMAC key erasure. Thus v6 is not a complete forward-secret Double Ratchet. Do not label its intra-epoch traffic as meeting the strong Double Ratchet security claim, and do not ship for high-risk messaging. Native protocol integration with periodic DH ratchet steps in a reviewed library is required.
+
+## v7 transport migration increment (October 2026)
+- GitHub snapshot publishing now omits chat history and task-comment history. Each new chat message and task comment is published as its own encrypted event envelope with an event UUID.
+- Locally generated outbound events are queued inside Android-encrypted workspace storage and removed from the GitHub outbox only after POST success. An interrupted POST can be retried; duplicates are deduplicated by event UUID.
+- GitHub bootstrap now processes a bounded set of complete envelopes oldest-to-newest, rather than stopping at the first workspace snapshot and silently losing later messages.
+- Local P2P workspace sync likewise strips chat and task-comment history from ongoing full snapshots and sends only queued individual events.
+- The local P2P event dispatcher is **at-most-once per running process** and does not yet have remote acknowledgements; reconnect/loss can lose an event. Do not claim reliable delivery.
+- IMPORTANT: event bodies on GitHub are still encrypted under the existing static shared channel key. Earlier GitHub issue comments retain already-published historical snapshots. This migration reduces future historical retransmission but **does not establish full forward secrecy**. Strict mode continues to block the legacy GitHub/local snapshot transports. A vetted native per-message Double Ratchet or MLS protocol is still required for production messaging.
+
+### Local event acknowledgement hardening
+- Locally queued outbound chat and task-comment events now require receipt of an encrypted local `ack` referencing the event UUID before removal from the Android-protected outbox.
+- Pending events retry every 15 seconds while a trusted peer is connected, and immediately on reconnection. Duplicate event IDs are merged idempotently. Acks are protected by the authenticated v6 local channel.
+- Transient events and acknowledgements do not overwrite Java's periodically retransmitted nonhistorical workspace snapshot.
+- A single peer acknowledgement is sufficient; full multiparty delivery acknowledgements, per-member membership epochs and rollback-protected outbox deletion are not implemented. This is best-effort reliability in an experimental pair setup, not a certified messaging protocol.

@@ -14,6 +14,8 @@
   const connectCard = document.querySelector(".connect-card");
 
   let autoLocalSendTimer = null;
+  let localPeers = 0;
+  let localRetryTimer = null;
   let autoLocalStarted = false;
   let activeMobilePane = "tasks";
   let unreadChat = 0;
@@ -266,8 +268,20 @@
     autoLocalSendTimer = setTimeout(() => {
       try {
         const raw = localStorage.getItem(WORKSPACE_KEY) ||
-          JSON.stringify({ version: 2, tasks: [], chat: [], updatedAt: new Date().toISOString() });
-        window.NativeLocal?.sendWorkspace?.(raw);
+          JSON.stringify({ version: 3, tasks: [], chat: [], updatedAt: new Date().toISOString() });
+        const data = JSON.parse(raw);
+        // The full local workspace contains historical plaintext. Never send
+        // its chat/comment history after rotating network session keys.
+        const safeSnapshot = {
+          version: data.version || 3, logicalCounter: data.logicalCounter || 0,
+          updatedAt: data.updatedAt, chat: [],
+          tasks: (data.tasks || []).map(task => ({...task, comments: []}))
+        };
+        window.NativeLocal?.sendWorkspace?.(JSON.stringify(safeSnapshot));
+        if (localPeers > 0) {
+          for (const event of data.outbox || [])
+            window.NativeLocal?.sendWorkspace?.(JSON.stringify({kind: "event", event}));
+        }
       } catch {}
     }, delay);
   }
@@ -282,16 +296,23 @@
       return;
     }
 
-    let peers = 0;
     window.NestLocalSync = {
       onStatus(state, count) {
-        peers = Number(count) || 0;
+        const previous = localPeers;
+        localPeers = Number(count) || 0;
         const summary = byId("syncSummaryDetail");
-        if (summary && peers > 0) summary.textContent = `${peers + 1} telefoner lokalt · kryptert`;
+        if (summary && localPeers > 0) summary.textContent = `${localPeers + 1} telefoner lokalt · kryptert`;
+        if (localPeers > 0 && previous === 0) autoLocalSend(100);
       },
       onWorkspace(raw) {
         try {
-          mergeWorkspace(JSON.parse(String(raw)));
+          const data = JSON.parse(String(raw));
+          if (data.kind === "event") {
+            if (window.NESTTransport?.applyEvent(data.event))
+              window.NativeLocal?.sendWorkspace?.(JSON.stringify({kind: "ack", id: data.event.id}));
+          } else if (data.kind === "ack") {
+            window.NESTTransport?.acknowledgeLocalEvent(data.id);
+          } else mergeWorkspace(data);
           autoLocalSend(650);
         } catch {}
       },
@@ -316,11 +337,16 @@
       autoLocalSend(500);
     } catch {
       autoLocalStarted = false;
+      localPeers = 0;
       window.NEST_LOCAL_CONNECTED = false;
     }
 
     window.addEventListener("nest:workspace-changed", () => autoLocalSend());
+    localRetryTimer = setInterval(() => {
+      if (autoLocalStarted && localPeers > 0) autoLocalSend(250);
+    }, 15_000);
     window.addEventListener("beforeunload", () => {
+      if (localRetryTimer) clearInterval(localRetryTimer);
       try { window.NativeLocal?.stop?.(); } catch {}
     });
   }

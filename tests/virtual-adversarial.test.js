@@ -225,7 +225,8 @@ test("what-if #11: release gate is unchanged despite a successful virtual lab",(
 test("what-if #12: encrypted GitHub snapshots can still contain old plaintext after local rekey",()=>{
  const app=read("app.js"),sync=read("github-sync.js");
  assert.match(app,/workspace\.chat\s*=\s*NESTCore\.mergeById/);
- assert.match(sync,/encryptPayload\(\{ kind: "workspace", workspace \}\)/);
+ assert.match(sync,/encryptPayload\(\{ kind: "workspace", workspace: snapshot \}\)/);
+ assert.match(sync,/function transportSnapshot\(\)/);
  const A=phone("phone-A"),B=phone("phone-B");
  const workspace={chat:[{id:"old",text:"retained before rotation"}]};
  const before=seal(A,B,workspace,1);
