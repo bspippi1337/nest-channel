@@ -80,3 +80,21 @@ test("GitHub FS transport is isolated from legacy static-key snapshots",()=>{
  assert.match(read("android/app/build.gradle"),/github-fs\.js/);
  assert.equal(MARKER,"<!-- NEST-FS1 -->");
 });
+
+test("FS1 room identity is repository-scoped and app never posts legacy wizard snapshots in strict mode",()=>{
+ const sync=read("github-sync.js"), wizard=read("nest-wizard-v091.js");
+ assert.match(sync,/nest-fs-room:/);
+ assert.match(sync,/repoOwner\.toLowerCase\(\)\+"\/"\+repoName\.toLowerCase\(\)/);
+ assert.match(sync,/window\.NESTSecurity\?\.requirePrivateRepo\(current\)/);
+ assert.match(wizard,/async function fsRoomHash/);
+ assert.match(wizard,/NEST-FS-ROOM:/);
+ assert.match(wizard,/if \(!window\.NESTSecurity\?\.isStrict\(\)\) await encryptedRoundTrip\(\)/);
+ assert.match(wizard,/Privat FS1-kanal klargjort/);
+});
+test("FS1 sender never exports ephemeral P-256 private key",()=>{
+ const src=read("github-fs.js");
+ assert.match(src,/generateKey\(\{name:"ECDH",namedCurve:"P-256"\},false,\["deriveBits"\]\)/);
+ assert.match(src,/this\._agreement\(ephemeral\.privateKey,selected\.public\)/);
+ assert.doesNotMatch(src,/exportKey\("pkcs8",ephemeral\.privateKey\)/);
+ assert.match(src,/finally\{if\(secret\)secret\.fill\(0\);if\(shared\)shared\.fill\(0\);\}/);
+});
