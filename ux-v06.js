@@ -296,6 +296,9 @@
       onChat(raw) {
         window.NEST_ReceiveLocalChat?.(raw);
       },
+      onReceipt(id, peerId) {
+        window.NEST_ChatReceipt?.(id, peerId);
+      },
       onError(message) {
         const summary = byId("syncSummaryDetail");
         if (summary && !window.NEST_GITHUB_CONNECTED) summary.textContent = String(message || "Lokal synk utilgjengelig");
