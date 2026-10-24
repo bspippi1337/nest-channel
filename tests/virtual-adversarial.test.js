@@ -41,6 +41,11 @@ function acceptHello(local,remote,offer,source,now){
  if(!verify("sha256",Buffer.from(canonical),remote.identity.publicKey,offer.signature))return false;
  if(offer.milliseconds<=local.acceptedAt || Math.abs(offer.milliseconds-now)>90_000)return false;
  local.acceptedAt=offer.milliseconds;
+ if(local.acceptedRemoteSession!==offer.session){
+  // Simulate the production v5 receiver's authenticated epoch-change reset.
+  local.acceptedRemoteSession=offer.session;
+  local.highest=0;
+ }
  local.address=source;
  return true;
 }
@@ -226,6 +231,8 @@ test("what-if #12: encrypted GitHub snapshots can still contain old plaintext af
  const before=seal(A,B,workspace,1);
  assert.equal(receive(B,A,before,"host"),true);
  rotate(A);
+ // Simulated authenticated HELLO must complete before a new epoch is used.
+ assert.equal(acceptHello(B,A,signedHello(A,500_000),"host",500_001),true);
  const after=seal(A,B,workspace,1);
  assert.equal(receive(B,A,after,"host"),true);
  assert.equal(B.lastMessage.chat[0].text,"retained before rotation");
