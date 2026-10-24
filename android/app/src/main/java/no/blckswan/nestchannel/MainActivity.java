@@ -274,7 +274,7 @@ public final class MainActivity extends Activity {
                 final boolean wasStrict = isHighThreatStrict();
                 final String message = wasStrict
                         ? "Standard beta aktiverer gammel GitHub- og lokal arbeidsflate-synk, som ikke har forward secrecy. Bruk bare ufarlige testdata. WebRTC kan eksponere IP. Deaktivere høyrisikoprofil?"
-                        : "Høyrisikoprofil sperrer gammel GitHub-/lokalsynk og live-radio fram til meldingsprotokollen er sikkerhetsgjennomgått. Ny lokal nøkkelratchet er under testing. Aktivere streng profil?";
+                        : "Høyrisikoprofil sperrer historiske synk-snapshots og live-radio. Nye chatmeldinger blir kun beholdt i minnet under økten og lagres ikke i arbeidsflatehistorikken. Eldre lokale chatter skjules og overskrives ved neste lagring. Aktivere streng profil?";
                 new AlertDialog.Builder(MainActivity.this)
                         .setTitle("NEST sikkerhetsprofil")
                         .setMessage(message)

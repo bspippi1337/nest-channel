@@ -247,7 +247,12 @@ final class LocalSyncManager {
         }
         ScheduledExecutorService activeScheduler = scheduler;
         if (!running.get() || activeScheduler == null) return 0;
-        int recipients = trustedActivePeerCount();
+        int recipients = 0;
+        for (Peer peer : peers.values()) {
+            if (peer.trusted && peer.sendChain != null && peer.receiveChain != null
+                    && peer.address != null && peer.lastSeen > 0L
+                    && SystemClock.elapsedRealtime() - peer.lastSeen <= PEER_TIMEOUT_MS) recipients++;
+        }
         if (recipients == 0) return 0;
         activeScheduler.execute(() -> sendChatNow(json));
         return recipients;
@@ -430,7 +435,8 @@ final class LocalSyncManager {
 
     private void sendChatNow(String json) {
         for (Peer peer : peers.values()) {
-            if (!peer.trusted || peer.sendChain == null || peer.address == null) continue;
+            if (!peer.trusted || peer.sendChain == null || peer.address == null
+                    || SystemClock.elapsedRealtime() - peer.lastSeen > PEER_TIMEOUT_MS) continue;
             try { sendEncryptedToPeer(json, peer, "secure_chat"); }
             catch (Exception error) {
                 if (running.get()) listener.onError("Lokal chat-sending feilet: " + messageFor(error));

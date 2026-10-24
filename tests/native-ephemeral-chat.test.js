@@ -87,3 +87,24 @@ test("strict NativeBridge withholds old GitHub token and channel root from WebVi
  assert.match(readBridge,/"github_token"\.equals\(key\) \|\| "channel_password"\.equals\(key\)/);
  assert.match(readBridge,/return "";/);
 });
+
+test("strict messages are ephemeral in app workspace persistence, never serialized as chat history",()=>{
+ const app=read("app.js");
+ assert.match(app,/function strictEphemeralChat\(\)/);
+ assert.match(app,/return strictEphemeralChat\(\) \? \{ \.\.\.workspace, chat: \[\] \} : workspace/);
+ assert.match(app,/chat: strictEphemeralChat\(\) \? \[\] :/);
+ const saves=[...app.matchAll(/localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(persistedWorkspace\(\)\)\)/g)];
+ assert.ok(saves.length>=2);
+ assert.doesNotMatch(app,/localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(workspace\)\)/);
+ assert.match(app,/if \(!strictEphemeralChat\(\)\)\s*workspace\.chat = NESTCore\.mergeById/);
+});
+test("high-risk native chat requires recent authenticated peer and a usable route",()=>{
+ const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
+ assert.match(java,/SystemClock\.elapsedRealtime\(\) - peer\.lastSeen <= PEER_TIMEOUT_MS/);
+ assert.match(java,/peer\.address != null && peer\.lastSeen > 0L/);
+ assert.match(java,/SystemClock\.elapsedRealtime\(\) - peer\.lastSeen > PEER_TIMEOUT_MS/);
+ const ui=read("ux-v06.js");
+ assert.match(ui,/!window\.NESTSecurity\?\.isStrict\?\.\(\)/);
+ const app=read("app.js");
+ assert.match(app,/if \(strictEphemeralChat\(\) && !window\.NEST_LOCAL_CONNECTED\)/);
+});

@@ -273,7 +273,8 @@
   }
 
   function setupAutoLocalTransport() {
-    if (!["auto", "local"].includes(getMode()) || !window.NativeLocal?.start) return;
+    if (!window.NativeLocal?.start) return;
+    if (!["auto", "local"].includes(getMode()) && !window.NESTSecurity?.isStrict?.()) return;
     // Native chat is a single-message transport. Legacy workspace sync stays
     // disabled under strict policy, independently enforced by Android.
 

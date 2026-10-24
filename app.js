@@ -30,6 +30,12 @@ let connectedNickname = "";
 
 function nowIso() { return new Date().toISOString(); }
 function blankWorkspace() { return { version: 3, logicalCounter: 0, tasks: [], chat: [], updatedAt: nowIso() }; }
+// Strict-mode chat is intentionally memory-only. This prevents new ciphertext
+// from being re-opened as historical plaintext in a later workspace snapshot.
+function strictEphemeralChat() { return window.NESTSecurity?.isStrict?.() === true; }
+function persistedWorkspace() {
+  return strictEphemeralChat() ? { ...workspace, chat: [] } : workspace;
+}
 
 function normalizeWorkspace(value) {
   if (!value || typeof value !== "object") return blankWorkspace();
@@ -38,7 +44,7 @@ function normalizeWorkspace(value) {
     logicalCounter: Math.max(0, Math.floor(Number(value.logicalCounter) || 0)),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : nowIso(),
     tasks: Array.isArray(value.tasks) ? value.tasks.map(normalizeTask) : [],
-    chat: Array.isArray(value.chat) ? value.chat.map(normalizeChat).filter(Boolean).slice(-300) : []
+    chat: strictEphemeralChat() ? [] : (Array.isArray(value.chat) ? value.chat.map(normalizeChat).filter(Boolean).slice(-300) : [])
   };
 }
 
@@ -141,7 +147,7 @@ function persist({ sync = true, renderNow = true } = {}) {
   workspace.version = 3;
   workspace.logicalCounter = logicalCounter;
   workspace.updatedAt = nowIso();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedWorkspace()));
   if (renderNow) render();
   if (sync) window.dispatchEvent(new CustomEvent("nest:workspace-changed"));
 }
@@ -155,11 +161,12 @@ function mergeWorkspace(remoteValue) {
     tasks.set(remoteTask.id, normalizeTask(NESTCore.mergeTask(localTask, remoteTask)));
   }
   workspace.tasks = [...tasks.values()];
-  workspace.chat = NESTCore.mergeById(workspace.chat, remote.chat, "createdAt").slice(-300);
+  if (!strictEphemeralChat())
+    workspace.chat = NESTCore.mergeById(workspace.chat, remote.chat, "createdAt").slice(-300);
   workspace.updatedAt = [workspace.updatedAt, remote.updatedAt].filter(Boolean).sort().at(-1) || nowIso();
   workspace.version = 3;
   workspace.logicalCounter = logicalCounter;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedWorkspace()));
   render();
 }
 
@@ -355,6 +362,10 @@ el.chatForm.addEventListener("submit", event => {
   event.preventDefault(); const text = el.chatInput.value.trim(); if (!text || !transportReady()) return;
   if (text.length > 4000) { alert("Meldingen er for lang (maks 4000 tegn)."); return; }
   const message = { id: crypto.randomUUID(), author: connectedNickname || el.nickname.value.trim() || "Ukjent", text, createdAt: nowIso(), clientId };
+  if (strictEphemeralChat() && !window.NEST_LOCAL_CONNECTED) {
+    el.statusText.textContent = "Lokal sikkerhetskanal er ikke tilkoblet. Meldingen ble ikke sendt.";
+    return;
+  }
   if (window.NEST_LOCAL_CONNECTED) {
     try {
       const receivers = Number(window.NativeLocal?.sendChat?.(JSON.stringify(message)) || 0);
