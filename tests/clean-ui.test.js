@@ -34,7 +34,7 @@ test("no shell, terminal, aliases or Linux jokes in shipped UI", () => {
 test("Android stays a plain app without executable terminal or command bridge", () => {
   const activity = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
   assert.doesNotMatch(activity, /Runtime\.getRuntime\(\)\.exec|ProcessBuilder|\.addJavascriptInterface\([^)]*Shell/);
-  assert.match(read("android/app/build.gradle"), /versionName '0\.9\.2'/);
+  assert.match(read("android/app/build.gradle"), /versionName '0\.9\.3'/);
   assert.match(read("service-worker.js"), /nest-channel-v15/);
 });
 
