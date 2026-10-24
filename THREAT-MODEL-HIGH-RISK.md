@@ -21,3 +21,5 @@ This branch reduces accidental leaks without replacing NEST's legacy static shar
 8. Keep signed v0.9.2 production on main unchanged pending independent acceptance. Preserve original signing certificate continuity.
 
 References: https://mas.owasp.org/MASVS/ ; https://signal.org/docs/specifications/doubleratchet/
+
+Additional narrowing: NativeBridge now rejects access to internal OAuth PKCE state/verifier keys and only exposes the specific legacy keys needed by the WebView. External intents are limited to fixed GitHub account/device paths and the assistant homepage. The `addJavascriptInterface` bridge remains a release blocker for a compromised WebView, even with CSP and navigation restrictions.

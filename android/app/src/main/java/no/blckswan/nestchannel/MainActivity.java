@@ -229,21 +229,40 @@ public final class MainActivity extends Activity {
         handleOAuthIntent(intent);
     }
 
+    // The browser may read only narrowly documented WebView-held values.
+    // Native-only OAuth verifier/state can never be queried from a JS frame.
+    private static boolean webSecretAllowed(String key) {
+        if (key == null) return false;
+        if ("github_token".equals(key) || "github_client_id".equals(key)
+                || "channel_password".equals(key)) return true;
+        return key.matches("workspace_v091_\\.(?:offline|[a-f0-9]{64})");
+    }
+
     private final class NativeBridge {
         @JavascriptInterface
-        public void saveSecret(String key, String value) { secureStore.put(key, value); }
+        public void saveSecret(String key, String value) {
+            if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
+            secureStore.put(key, value);
+        }
 
         @JavascriptInterface
-        public boolean hasSecret(String key) { return secureStore.contains(key); }
+        public boolean hasSecret(String key) {
+            if (!webSecretAllowed(key)) return false;
+            return secureStore.contains(key);
+        }
 
         @JavascriptInterface
         public String loadSecret(String key) {
+            if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
             if ("github_token".equals(key) && "local".equals(modePreferences.getString("mode", "auto"))) return "";
             return secureStore.get(key);
         }
 
         @JavascriptInterface
-        public void deleteSecret(String key) { secureStore.remove(key); }
+        public void deleteSecret(String key) {
+            if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
+            secureStore.remove(key);
+        }
 
         @JavascriptInterface
         public void setSyncMode(String mode) {
@@ -294,7 +313,16 @@ public final class MainActivity extends Activity {
                 Uri uri = Uri.parse(rawUrl);
                 if (!"https".equalsIgnoreCase(uri.getScheme())) return;
                 String host = uri.getHost();
-                if (!"github.com".equalsIgnoreCase(host) && !"chatgpt.com".equalsIgnoreCase(host)) return;
+                String path = uri.getPath() == null ? "" : uri.getPath();
+                boolean githubAllowed = "github.com".equalsIgnoreCase(host) && (
+                        "/signup".equals(path) || "/notifications".equals(path)
+                        || "/login/device".equals(path)
+                        || "/settings/tokens/new".equals(path)
+                        || "/settings/personal-access-tokens/new".equals(path));
+                boolean helpAllowed = "chatgpt.com".equalsIgnoreCase(host)
+                        && (path.isEmpty() || "/".equals(path));
+                if (!githubAllowed && !helpAllowed) return;
+                if (uri.getUserInfo() != null || uri.getFragment() != null) return;
                 startActivity(new Intent(Intent.ACTION_VIEW, uri));
             } catch (Exception ignored) {}
         }

@@ -46,3 +46,19 @@ test("risk profile is bundled and cache version incremented", () => {
     assert.match(read(p), /high-threat\.js/, p);
   assert.match(read("service-worker.js"), /nest-channel-v14/);
 });
+
+test("JavaScript may not query private native-only OAuth PKCE verifier or state", () => {
+  const java = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+  assert.match(java, /private static boolean webSecretAllowed\(String key\)/);
+  assert.match(java, /if \(!webSecretAllowed\(key\)\) throw new SecurityException/);
+  assert.match(java, /workspace_v091_/);
+  const block = java.slice(java.indexOf("private static boolean webSecretAllowed"), java.indexOf("private final class NativeBridge"));
+  assert.doesNotMatch(block, /PKCE_VERIFIER_KEY|PKCE_STATE_KEY/);
+});
+test("external-intent bridge opens only explicit account/help pages", () => {
+  const java = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+  assert.match(java, /"\/login\/device"\.equals\(path\)/);
+  assert.match(java, /"\/settings\/personal-access-tokens\/new"\.equals\(path\)/);
+  assert.match(java, /if \(!githubAllowed && !helpAllowed\) return/);
+  assert.match(java, /uri\.getUserInfo\(\) != null/);
+});
