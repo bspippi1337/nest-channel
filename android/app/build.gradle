@@ -66,7 +66,7 @@ android {
 def syncWebAssets = tasks.register('syncWebAssets', Copy) {
     from(rootProject.projectDir.parentFile) {
         include 'index.html', 'storage-sandbox.js', 'nest-core.js', 'app.js', 'styles.css', 'manifest.webmanifest',
-                'icon.svg', 'nest-channel-comic.webp', 'nest-orbit.svg', 'nest-flow.svg', 'nest-empty.svg',
+                'icon.svg', 'nest-channel-comic.webp', 'nest-orbit.svg', 'nest-flow.svg', 'nest-empty.svg', 'nest-comic-about.svg', 'nest-comic-repo.svg', 'nest-comic-qr.svg', 'nest-comic-verify.svg',
                 'art-direction.css', 'service-worker.js', 'high-threat.js', 'github-sync.js', 'github-sync.css',
                 'about.js', 'about.css', 'ux-v06.js', 'ux-v06.css', 'security-v07.js', 'security-v07.css',
                 'release-v09.js',

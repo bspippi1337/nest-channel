@@ -35,7 +35,7 @@ test("Android stays a plain app without executable terminal or command bridge", 
   const activity = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
   assert.doesNotMatch(activity, /Runtime\.getRuntime\(\)\.exec|ProcessBuilder|\.addJavascriptInterface\([^)]*Shell/);
   assert.match(read("android/app/build.gradle"), /versionName '0\.9\.3'/);
-  assert.match(read("service-worker.js"), /nest-channel-v16/);
+  assert.match(read("service-worker.js"), /nest-channel-v17/);
 });
 
 test("wizard stays inside Android bars and all scrollable steps", () => {
@@ -67,4 +67,20 @@ test("private GitHub OAuth can access private Issues and Android hotfix is upgra
   assert.match(java, /repo read:user/);
   assert.doesNotMatch(java, /public_repo read:user/);
   assert.match(read("android/app/build.gradle"), /versionCode 15/);
+});
+
+test("premium stick figure comic art shipped in both Android and web app",()=>{
+ const names=["nest-comic-about.svg","nest-comic-repo.svg","nest-comic-qr.svg","nest-comic-verify.svg"];
+ const wizard=read("nest-wizard-v091.js"), about=read("about.js");
+ const gradle=read("android/app/build.gradle"), worker=read("service-worker.js");
+ for(const n of names){
+   assert.ok(fs.existsSync(path.join(root,n)),n);
+   const svg=read(n);
+   assert.match(svg,/<svg\b/);assert.match(svg,/<title>/);
+   assert.match(svg,/@media \(prefers-reduced-motion: reduce\)/);
+   assert.doesNotMatch(svg,/<script|onload=|<foreignObject/i);
+   assert.ok(gradle.includes(n)&&worker.includes(n),n);
+   assert.ok(wizard.includes(n)||about.includes(n),n);
+ }
+ assert.match(read("art-direction.css"),/nest91-comic/);
 });

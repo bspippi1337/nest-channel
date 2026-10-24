@@ -324,6 +324,24 @@
     })[state.step] || "NEST 0.9.2";
     tag("p", "NEST · 0.9.2 · " + (state.role === "host" ? "Telefon A" : state.role === "join" ? "Telefon B" : "Velkommen"), "nest91-kicker", body);
     if (state.error) note(body, state.error, "error");
+    // Small hand-drawn diagrams provide context, never a security attestation.
+    const art = ({
+      welcome:["nest-comic-about.svg","To telefoner, én kanal. Innhold beskyttes, men ikke alle metadata."],
+      account:["nest-comic-repo.svg","Én konto per bruker."],
+      auth:["nest-comic-repo.svg","Gi bare nødvendige tillatelser."],
+      repository:["nest-comic-repo.svg","Privat repo er anbefalt."],
+      channel:["nest-comic-qr.svg","Nøkkelen deles direkte."],
+      invite:["nest-comic-qr.svg","Skann QR-koden direkte mellom telefonene."],
+      import:["nest-comic-qr.svg","QR-koden inneholder hemmeligheten."],
+      access:["nest-comic-verify.svg","Kontroller tilgang på begge telefonene."],
+      ready:["nest-comic-verify.svg","En bestått funksjonstest er ikke en sikkerhetsrevisjon."]
+    })[state.step];
+    if (art) {
+      const figure=tag("figure","","nest91-comic",body);
+      const img=tag("img","","",figure);
+      img.src=art[0]; img.alt=art[1]; img.decoding="async";
+      tag("figcaption",art[1],"",figure);
+    }
     if (state.step === "welcome") {
       note(body, "NEST er testprogramvare, ikke godkjent for kildevern, krigsområder eller statsaktører.");
       if (window.NESTSecurity?.isStrict()) note(body, "Streng profil krever Android-appen. Ikke send følsomme data via nettleserversjonen.");
