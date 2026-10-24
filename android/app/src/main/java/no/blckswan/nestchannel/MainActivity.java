@@ -268,8 +268,8 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> {
                 final boolean wasStrict = isHighThreatStrict();
                 final String message = wasStrict
-                        ? "Deaktivering åpner for IP-eksponering via WebRTC, offentlige repoer og utklippstavle. Skal ikke brukes til kildevern eller i krigsområder. Bytt til standard beta?"
-                        : "Aktivering sperrer direkte radio, offentlige repoer og kopiering av hemmelige invitasjoner. Det gir ikke sikkerhetssertifisering. Aktiver streng profil?";
+                        ? "Standard beta aktiverer gammel GitHub- og lokal arbeidsflate-synk, som ikke har forward secrecy. Bruk bare ufarlige testdata. WebRTC kan eksponere IP. Deaktivere høyrisikoprofil?"
+                        : "Høyrisikoprofil sperrer gammel GitHub-/lokalsynk og live-radio fram til meldingsprotokollen er sikkerhetsgjennomgått. Ny lokal nøkkelratchet er under testing. Aktivere streng profil?";
                 new AlertDialog.Builder(MainActivity.this)
                         .setTitle("NEST sikkerhetsprofil")
                         .setMessage(message)
@@ -423,9 +423,15 @@ public final class MainActivity extends Activity {
     }
 
     private final class LocalBridge {
-        @JavascriptInterface public void start() { localSyncManager.start(); }
+        @JavascriptInterface public void start() {
+            if (isHighThreatStrict()) throw new SecurityException("Historiske snapshots er sperret i høyrisikoprofil.");
+            localSyncManager.start();
+        }
         @JavascriptInterface public void stop() { localSyncManager.stop(); }
-        @JavascriptInterface public void sendWorkspace(String json) { localSyncManager.sendWorkspace(json); }
+        @JavascriptInterface public void sendWorkspace(String json) {
+            if (isHighThreatStrict()) throw new SecurityException("Ingen forward secrecy for gamle arbeidsflatesnapshots.");
+            localSyncManager.sendWorkspace(json);
+        }
         @JavascriptInterface public void addPeer(String host) { localSyncManager.addManualPeer(host); }
         @JavascriptInterface public String getLocalAddress() { return localSyncManager.localAddress(); }
         @JavascriptInterface public String getIdentityFingerprint() { return localSyncManager.identityFingerprint(); }

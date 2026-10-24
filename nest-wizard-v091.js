@@ -212,6 +212,7 @@
     cacheIssue(hash);
   }
   async function encryptedRoundTrip() {
+    window.NESTSecurity?.requireForwardSecretTransport?.("legacy_wizard");
     window.NESTSecurity?.requireNative();
     window.NESTSecurity?.requireStrongChannelKey(state.key);
     const hash = await roomHash(state.channel);

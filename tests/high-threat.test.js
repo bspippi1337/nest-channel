@@ -99,11 +99,11 @@ test("native Android owns the threat-profile policy and microphone gate", () => 
 
 test("local v4 sessions rotate, authenticate freshness, reject replay and bound resource use", () => {
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
- assert.match(java,/PROTOCOL_VERSION = 5/);
+ assert.match(java,/PROTOCOL_VERSION = 6/);
  assert.match(java,/SESSION_ROTATE_MS = 15 \* 60_000L/);
  assert.match(java,/scheduleAtFixedRate\(this::rotateLocalSession/);
  assert.match(java,/sessionKeyPair = fresh/);
- assert.match(java,/peer\.key = null/);
+ assert.match(java,/peer\.clearReplay\(\)/);
  assert.match(java,/MAX_SIGNED_HELLO_SKEW_MS/);
  assert.match(java,/helloCanonical\(sender, identity, session, nonce, sentAt\)/);
  assert.match(java,/sentAt <= peer\.lastSignedHello/);
@@ -121,4 +121,18 @@ test("GitHub sync surfaces Keystore failure and cleans failed connection",()=>{
  assert.match(js,/window\.NativeHost\.loadSecret\(key\) !== String\(value\)/);
  assert.match(js,/disconnectGithub\(\);\s*setConnectionState\("offline"/);
  assert.doesNotMatch(js,/function secretSave\(key, value\) \{\s*try/);
+});
+
+test("strict profile refuses all legacy whole-workspace sync transports until reviewed FS migration",()=>{
+ const policy=require("../high-threat.js");
+ assert.throws(()=>policy.requireForwardSecretTransport("github_workspace"),/forward secrecy/);
+ assert.throws(()=>policy.requireForwardSecretTransport("local_workspace"),/forward secrecy/);
+ assert.throws(()=>policy.requireForwardSecretTransport("legacy_wizard"),/forward secrecy/);
+ const repo=read("github-sync.js"), wizard=read("nest-wizard-v091.js"), ui=read("ux-v06.js");
+ const java=read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+ assert.match(repo,/requireForwardSecretTransport\?\.\("github_workspace"\)/);
+ assert.match(wizard,/requireForwardSecretTransport\?\.\("legacy_wizard"\)/);
+ assert.match(ui,/requireForwardSecretTransport\?\.\("local_workspace"\)/);
+ assert.match(java,/if \(isHighThreatStrict\(\)\) throw new SecurityException\("Ingen forward secrecy/);
+ assert.match(read("SECURITY-READINESS.json"),/"release_blocked": true/);
 });

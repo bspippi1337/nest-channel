@@ -32,6 +32,16 @@
       throw new Error("Høyrisikoprofil krever en tilfeldig generert 256-bits kanalnøkkel fra veiviseren.");
     return true;
   }
+  // The legacy GitHub snapshot and native full-workspace transports still
+  // re-send previously stored plaintext under new keys. These paths cannot
+  // truthfully promise message forward secrecy. Block them in strict mode
+  // until a reviewed per-device messaging migration is implemented.
+  function requireForwardSecretTransport(kind) {
+    if (isStrict() && (kind === "github_workspace" || kind === "local_workspace" || kind === "legacy_wizard"))
+      throw new Error("Høyrisikoprofil: gammel NEST-transport har ikke forward secrecy. "
+        + "Kun standard beta med ufarlige testdata støttes inntil meldingsratcheten er ferdig.");
+    return true;
+  }
   function requireRadioAllowed() {
     if (isStrict()) throw new Error("Høyrisikoprofil blokkerer live-radio: WebRTC/STUN kan røpe IP-adresser. Anonym relay er ikke implementert.");
     return true;
@@ -69,5 +79,5 @@
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupUi, { once: true });
     else setupUi();
   }
-  return Object.freeze({ isStrict, requireNative, requirePrivateRepo, requireStrongChannelKey, requireRadioAllowed, requireClipboardAllowed });
+  return Object.freeze({ isStrict, requireNative, requirePrivateRepo, requireStrongChannelKey, requireForwardSecretTransport, requireRadioAllowed, requireClipboardAllowed });
 });
