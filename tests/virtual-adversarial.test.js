@@ -172,15 +172,15 @@ test("what-if #7: a burst of incomplete GitHub snapshots remains bounded",async(
 });
 test("what-if #8: a valid multipart Github snapshot still assembles out of order",async()=>{
  const {ctx,make,merged}=actualGithubFragmentEngine();
- const a=make("legit",1,3,"HELLO");
- const b=make("legit",2,3,"-");
- const c=make("legit",3,3,"WORLD");
+ const a=make("legit",1,3,"QUJD");
+ const b=make("legit",2,3,"REVG");
+ const c=make("legit",3,3,"R0hJ");
  await ctx.receiveComment(c);
  await ctx.receiveComment(a);
  assert.equal(merged.length,0);
  await ctx.receiveComment(b);
  assert.equal(merged.length,1);
- assert.equal(merged[0].joined,"HELLO-WORLD");
+ assert.equal(merged[0].joined,"QUJDREVGR0hJ");
  await ctx.receiveComment(b);
  assert.equal(merged.length,1);
 });
@@ -193,8 +193,8 @@ test("what-if #9: malformed or excessive GitHub fragments cannot allocate pendin
   await ctx.receiveComment(item);
  }
  assert.equal(ctx.chunkGroups.size,0);
- const invalid=make("badid",1,0,"A");await ctx.receiveComment(invalid);
- assert.ok(ctx.chunkGroups.size<=1);
+ const invalid=make("badid",1,0,"AAAA");await ctx.receiveComment(invalid);
+ assert.equal(ctx.chunkGroups.size,0);
 });
 test("what-if #10: missing durable revocation must stop local networking",()=>{
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
