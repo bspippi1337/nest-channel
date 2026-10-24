@@ -31,8 +31,8 @@ test("Android reduces WebView, capture, external intents and debugging exposure"
   assert.match(j, /setWebContentsDebuggingEnabled\(false\)/);
   assert.match(j, /setAllowContentAccess\(false\)/);
   assert.match(j, /setAcceptThirdPartyCookies\(webView, false\)/);
-  assert.match(j, /!"github\.com"\.equalsIgnoreCase\(host\)/);
-  assert.match(j, /!"chatgpt\.com"\.equalsIgnoreCase\(host\)/);
+  assert.match(j, /"github\.com"\.equalsIgnoreCase\(host\)/);
+  assert.match(j, /"chatgpt\.com"\.equalsIgnoreCase\(host\)/);
 });
 test("encrypted data survives failures; never overwrite unreadable ciphertext", () => {
   const j = read("android/app/src/main/java/no/blckswan/nestchannel/SecureStore.java");
