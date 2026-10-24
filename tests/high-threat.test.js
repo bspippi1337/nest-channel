@@ -11,7 +11,8 @@ test("risk-reduction gates deny by default and require explicit downgrade", () =
   assert.throws(() => p.requirePrivateRepo({private:false}), /privat/i);
   assert.doesNotThrow(() => p.requirePrivateRepo({private:true}));
   assert.throws(() => p.requireStrongChannelKey("password123"), /256-bits/);
-  assert.doesNotThrow(() => p.requireStrongChannelKey("a".repeat(43)));
+  assert.throws(() => p.requireStrongChannelKey("a".repeat(43)), /256-bits/);
+  assert.doesNotThrow(() => p.requireStrongChannelKey("2A7bc8DE9fG0hJKlM1nOPqR3sT4uVW5xYz_-6B8dE0F"));
   assert.throws(() => p.requireRadioAllowed(), /WebRTC/);
   assert.throws(() => p.requireClipboardAllowed(), /utklippstavlen/);
 });
@@ -21,6 +22,8 @@ test("high-risk checks are enforced at transport and PTT entry points", () => {
   assert.match(read("nest-wizard-v091.js"), /requirePrivateRepo\(data\)/);
   assert.match(read("nest-ptt-v091.js"), /requireRadioAllowed\(\)/);
   assert.match(read("nest-wizard-v091.js"), /requireClipboardAllowed\(\)/);
+  assert.match(read("security-v07.js"), /requireClipboardAllowed\(\)/);
+  assert.match(read("nest-wizard-v091.js"), /state.pendingInvite = ""/);
 });
 test("Android reduces WebView, capture, external intents and debugging exposure", () => {
   const j = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");

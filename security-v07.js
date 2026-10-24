@@ -159,6 +159,8 @@
     byId("nestPairScanFromDialog").addEventListener("click", scanQr);
     byId("nestPairClose").addEventListener("click", () => dialog.close());
     byId("nestPairPaste").addEventListener("click", () => {
+      try { window.NESTSecurity?.requireClipboardAllowed(); }
+      catch (error) { notify(error.message); return; }
       const raw = window.prompt("Lim inn NESTPAIR1-koden:");
       if (!raw) return;
       try {
@@ -170,6 +172,8 @@
       }
     });
     byId("nestPairCopy").addEventListener("click", async () => {
+      try { window.NESTSecurity?.requireClipboardAllowed(); }
+      catch (error) { notify(error.message); return; }
       if (!currentPayload) return;
       try {
         await navigator.clipboard.writeText(currentPayload);

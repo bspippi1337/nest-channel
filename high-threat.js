@@ -7,14 +7,22 @@
 })(typeof window !== "undefined" ? window : null, function () {
   "use strict";
   const KEY = "nest.security.threat-profile.v1";
-  const isStrict = () => typeof localStorage === "undefined" || localStorage.getItem(KEY) !== "standard";
+  const isStrict = () => {
+    try { return typeof localStorage === "undefined" || localStorage.getItem(KEY) !== "standard"; }
+    catch { return true; } // Denied storage must fail closed.
+  };
   function requirePrivateRepo(data) {
     if (isStrict() && (!data || data.private !== true))
       throw new Error("Høyrisikoprofil blokkerer offentlige repoer. Bruk et NYTT privat repo.");
     return true;
   }
   function requireStrongChannelKey(secret) {
-    if (isStrict() && !/^[A-Za-z0-9_-]{43}$/.test(String(secret || "")))
+    const candidate = String(secret || "");
+    // Form validation alone is not entropy proof; reject obvious low-entropy strings.
+    const shape = /^[A-Za-z0-9_-]{43}$/.test(candidate) && /[A-Z]/.test(candidate)
+      && /[a-z]/.test(candidate) && /[0-9_-]/.test(candidate)
+      && new Set(candidate).size >= 16;
+    if (isStrict() && !shape)
       throw new Error("Høyrisikoprofil krever en tilfeldig generert 256-bits kanalnøkkel fra veiviseren.");
     return true;
   }
@@ -46,7 +54,8 @@
         ? "Slå AV høyrisikoprofil? Offentlige repoer, kortere passord, utklippstavle og WebRTC med IP-eksponering blir tilgjengelig. IKKE bruk i risikoområder."
         : "Slå PÅ høyrisikoprofil? Offentlige repoer, korte passord, utklippstavle og WebRTC sperres. Appen er fortsatt IKKE godkjent for høyrisikobruk.";
       if (!window.confirm(message)) return;
-      localStorage.setItem(KEY, downgrade ? "standard" : "strict");
+      try { localStorage.setItem(KEY, downgrade ? "standard" : "strict"); }
+      catch { alert("Sikkerhetsprofilen kunne ikke lagres. Streng modus forblir aktiv."); return; }
       location.reload();
     });
     container.prepend(btn);

@@ -125,12 +125,15 @@
       throw new Error("Dette er ikke en NEST 0.9.2-invitasjon.");
     }
     const data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(fromB64url(raw.slice(9))));
+    if (window.NESTSecurity?.isStrict()) window.NESTSecurity.requireStrongChannelKey(data.secret);
     if (data.v !== 1 || !validRepo(data.repo) || !validChannel(data.channel)
         || !/^[A-Za-z0-9_-]{43}$/.test(data.secret)
         || !Number.isSafeInteger(data.issue) || data.issue < 1
         || !Number.isFinite(data.expires) || data.expires < Date.now() || data.expires > Date.now() + 31 * 60 * 1000) {
       throw new Error("Invitasjonen er feil, utløpt eller endret. Be om en ny QR.");
     }
+    // Drop the redundant editable QR payload as soon as the key is imported.
+    state.pendingInvite = "";
     state.repo = data.repo; state.channel = data.channel; state.key = data.secret;
     state.issue = data.issue; state.expires = data.expires;
     state.role = "join";
@@ -209,6 +212,7 @@
     cacheIssue(hash);
   }
   async function encryptedRoundTrip() {
+    window.NESTSecurity?.requireStrongChannelKey(state.key);
     const hash = await roomHash(state.channel);
     const salt = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("nest-key:" + hash))).slice(0, 16);
     const material = await crypto.subtle.importKey("raw", enc.encode(state.key), "PBKDF2", false, ["deriveKey"]);
