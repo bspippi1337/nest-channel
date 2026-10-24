@@ -455,7 +455,8 @@
   }
   function init() {
     if ($("nest91-dialog")) return;
-    const launcher = tag("button", "Oppsett 0.9.3", "nest91-launch", document.querySelector(".topbar-actions") || document.body);
+    const launcher = tag("button", "Oppsett", "nest91-launch", document.querySelector(".topbar-actions") || document.body);
+    launcher.setAttribute("aria-label", "Åpne oppsett for NEST 0.9.3");
     launcher.type = "button"; launcher.onclick = () => openWizard("welcome");
     const dialog = tag("dialog", "", "nest91-dialog", document.body); dialog.id = "nest91-dialog"; dialog.setAttribute("aria-labelledby", "nest91-title");
     const article = tag("article", "", "nest91-content", dialog);
