@@ -423,9 +423,15 @@ public final class MainActivity extends Activity {
     }
 
     private final class LocalBridge {
-        @JavascriptInterface public void start() { localSyncManager.start(); }
+        @JavascriptInterface public void start() {
+            if (isHighThreatStrict()) throw new SecurityException("Historiske snapshots er sperret i høyrisikoprofil.");
+            localSyncManager.start();
+        }
         @JavascriptInterface public void stop() { localSyncManager.stop(); }
-        @JavascriptInterface public void sendWorkspace(String json) { localSyncManager.sendWorkspace(json); }
+        @JavascriptInterface public void sendWorkspace(String json) {
+            if (isHighThreatStrict()) throw new SecurityException("Ingen forward secrecy for gamle arbeidsflatesnapshots.");
+            localSyncManager.sendWorkspace(json);
+        }
         @JavascriptInterface public void addPeer(String host) { localSyncManager.addManualPeer(host); }
         @JavascriptInterface public String getLocalAddress() { return localSyncManager.localAddress(); }
         @JavascriptInterface public String getIdentityFingerprint() { return localSyncManager.identityFingerprint(); }

@@ -274,6 +274,13 @@
 
   function setupAutoLocalTransport() {
     if (getMode() !== "auto" || !window.NativeLocal?.start) return;
+    try { window.NESTSecurity?.requireForwardSecretTransport?.("local_workspace"); }
+    catch (error) {
+      const summary = byId("syncSummaryDetail");
+      if (summary) summary.textContent = String(error.message || error);
+      window.NEST_LOCAL_CONNECTED = false;
+      return;
+    }
 
     let peers = 0;
     window.NestLocalSync = {

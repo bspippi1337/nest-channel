@@ -479,6 +479,7 @@
 
   async function publishWorkspace({ force = false } = {}) {
     if (!window.NEST_GITHUB_CONNECTED) return;
+    window.NESTSecurity?.requireForwardSecretTransport?.("github_workspace");
     // Re-check repository privacy before every upload, including auto-sync.
     // This is not atomic with GitHub visibility changes, but stops known exposure.
     if (window.NESTSecurity?.isStrict()) {
@@ -547,6 +548,7 @@
     el.connectButton.disabled = true;
     setConnectionState("connecting", "Finner kryptert GitHub-kanal …");
     try {
+      window.NESTSecurity?.requireForwardSecretTransport?.("github_workspace");
       if (window.NESTSecurity?.isStrict()) {
         window.NESTSecurity.requireNative();
         window.NESTSecurity.requireStrongChannelKey(password);

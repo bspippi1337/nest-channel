@@ -210,6 +210,7 @@ final class LocalSyncManager {
         pendingPairing = null;
         sessionKeyPair = null;
         sessionPublicBase64 = "";
+        lastWorkspace = "";
         listener.onStatus("offline", 0, "Lokal synk stoppet");
     }
 
