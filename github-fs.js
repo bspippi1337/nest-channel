@@ -126,7 +126,7 @@ class FSChannel {
   return true;
  }
  async _agreement(priv,pub){
-  const k=await this.dhPrivate(priv),p=await this.dhPublic(pub);
+  const k=typeof priv==="string"?await this.dhPrivate(priv):priv,p=await this.dhPublic(pub);
   return new Uint8Array(await this.subtle.deriveBits({name:"ECDH",public:p},k,256));
  }
  _aad(header){return bytes("NEST-FS1-AEAD:"+canonical(header));}
@@ -136,15 +136,15 @@ class FSChannel {
   requireValue(selected,"Recipient has no unused prekeys; wait for refreshed bundle");
   const plain=bytes(canonical(event));
   requireValue(plain.length>0&&plain.length<=MAX_MESSAGE,"Message too large");
-  const ephemeral=await this.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]);
+  const ephemeral=await this.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);
   const eph=b64(await this.subtle.exportKey("spki",ephemeral.publicKey));
-  const priv=b64(await this.subtle.exportKey("pkcs8",ephemeral.privateKey));
+
   const header={v:1,kind:"message",room:this.room,from:this.state.id,to:this.state.peer.id,
    key:selected.id,eph,nonce:b64(this.random(12))};
-  let shared;
+  let shared,secret;
   try{
-   shared=await this._agreement(priv,selected.public);
-   const secret=await this.hkdf(shared,"NEST-FS1-MESSAGE:"+canonical(header));
+   shared=await this._agreement(ephemeral.privateKey,selected.public);
+   secret=await this.hkdf(shared,"NEST-FS1-MESSAGE:"+canonical(header));
    const key=await this.subtle.importKey("raw",secret,{name:"AES-GCM"},false,["encrypt"]);
    const data=b64(await this.subtle.encrypt({name:"AES-GCM",iv:un64(header.nonce),
       additionalData:this._aad(header),tagLength:128},key,plain));
@@ -154,9 +154,8 @@ class FSChannel {
    this.state.sentKeys=(this.state.sentKeys||[]).concat(selected.id);
    this.state.peer.prekeys=this.state.peer.prekeys.filter(p=>p.id!==selected.id);
    this._save();
-   secret.fill(0);
    return output;
-  }finally{if(shared)shared.fill(0);}
+  }finally{if(secret)secret.fill(0);if(shared)shared.fill(0);}
  }
  async openMessage(input){
   requireValue(this.state?.peer,"Unpaired FS receiver");
@@ -171,15 +170,14 @@ class FSChannel {
   requireValue(await this.verify({...header,data},sig,this.state.peer.identity),"Invalid sender signature");
   const selected=this.state.prekeys.find(p=>p.id===key);
   if(!selected)return null; // Duplicate, already consumed, or unknown prekey.
-  let shared,plaintext;
+  let shared,secret,plaintext;
   try {
    shared=await this._agreement(selected.private,eph);
-   const secret=await this.hkdf(shared,"NEST-FS1-MESSAGE:"+canonical(header));
+   secret=await this.hkdf(shared,"NEST-FS1-MESSAGE:"+canonical(header));
    const cryptoKey=await this.subtle.importKey("raw",secret,{name:"AES-GCM"},false,["decrypt"]);
    const decrypted=await this.subtle.decrypt({
      name:"AES-GCM",iv:un64(nonce),additionalData:this._aad(header),tagLength:128
    },cryptoKey,un64(data));
-   secret.fill(0);
    plaintext=JSON.parse(decoder.decode(decrypted));
    requireValue(plaintext&&typeof plaintext==="object"
      &&typeof plaintext.id==="string"&&/^[0-9a-f-]{36}$/i.test(plaintext.id)
@@ -188,7 +186,7 @@ class FSChannel {
    this.state.prekeys=this.state.prekeys.filter(p=>p.id!==key);
    this._save();
    return plaintext;
-  }finally{if(shared)shared.fill(0);}
+  }finally{if(secret)secret.fill(0);if(shared)shared.fill(0);}
  }
  fingerprint(){return this.sha(this.state.identity.public).then(v=>hex(v).slice(0,32));}
  paired(){return Boolean(this.state?.peer);}
