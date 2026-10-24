@@ -29,7 +29,7 @@ let roomKey = null;
 let connectedNickname = "";
 
 function nowIso() { return new Date().toISOString(); }
-function blankWorkspace() { return { version: 3, logicalCounter: 0, tasks: [], chat: [], outbox: [], updatedAt: nowIso() }; }
+function blankWorkspace() { return { version: 3, logicalCounter: 0, tasks: [], chat: [], outbox: [], deferredEvents: [], updatedAt: nowIso() }; }
 
 function normalizeWorkspace(value) {
   if (!value || typeof value !== "object") return blankWorkspace();
@@ -42,7 +42,10 @@ function normalizeWorkspace(value) {
     // Local encrypted queue; NEVER accept a remote transport snapshot's outbox.
     outbox: Array.isArray(value.outbox) ? value.outbox.filter(event =>
       event && typeof event.id === "string" && ["chat","task_comment"].includes(event.type)
-      && typeof event.createdAt === "string").slice(-256) : []
+      && typeof event.createdAt === "string").slice(-256) : [],
+    deferredEvents: Array.isArray(value.deferredEvents) ? value.deferredEvents.filter(event =>
+      event && event.type === "task_comment" && typeof event.id === "string"
+      && typeof event.taskId === "string" && typeof event.createdAt === "string").slice(-256) : []
   };
 }
 
@@ -157,7 +160,16 @@ function applyTransportEvent(event) {
   } else if (event.type === "task_comment") {
     const task = workspace.tasks.find(item => item.id === event.taskId);
     const comment = normalizeComment(event.comment);
-    if (!task || !comment || comment.id !== event.id || comment.text.length > 2000) return false;
+    if (!comment || comment.id !== event.id || comment.text.length > 2000
+        || typeof event.taskId !== "string") return false;
+    if (!task) {
+      if (!workspace.deferredEvents.some(item => item.id === event.id)) {
+        if (workspace.deferredEvents.length >= 256) return false;
+        workspace.deferredEvents.push(event);
+        persist({sync: false, renderNow: false});
+      }
+      return true;
+    }
     task.comments = NESTCore.mergeById(task.comments, [comment], "createdAt");
   } else return false;
   persist({ sync: false });
@@ -190,6 +202,14 @@ function mergeWorkspace(remoteValue) {
     tasks.set(remoteTask.id, normalizeTask(NESTCore.mergeTask(localTask, remoteTask)));
   }
   workspace.tasks = [...tasks.values()];
+  // A comment may arrive before the corresponding task snapshot. Keep its
+  // authenticated event locally until the task becomes available.
+  const pending = [...workspace.deferredEvents];
+  workspace.deferredEvents = [];
+  for (const event of pending) {
+    if (workspace.tasks.some(task => task.id === event.taskId)) applyTransportEvent(event);
+    else workspace.deferredEvents.push(event);
+  }
   workspace.chat = NESTCore.mergeById(workspace.chat, remote.chat, "createdAt").slice(-300);
   workspace.updatedAt = [workspace.updatedAt, remote.updatedAt].filter(Boolean).sort().at(-1) || nowIso();
   workspace.version = 3;
