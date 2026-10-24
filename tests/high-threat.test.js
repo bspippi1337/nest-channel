@@ -110,7 +110,7 @@ test("local v4 sessions rotate, authenticate freshness, reject replay and bound 
  assert.match(java,/epoch\.equals\(peer\.epoch\)/);
  assert.match(java,/peer\.rememberAuthenticated\(messageId\)/);
  assert.match(java,/Mac\.getInstance\("HmacSHA256"\)/);
- assert.match(java,/cipher\.updateAAD\(aadForEpoch/);
+ assert.match(java,/cipher\.updateAAD\(aadForSequence/);
  assert.match(java,/MAX_ACTIVE_ASSEMBLIES/);
  assert.match(java,/MAX_FRAGMENT_COUNT/);
  assert.match(java,/MAX_WORKSPACE_BYTES/);
