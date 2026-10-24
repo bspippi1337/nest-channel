@@ -261,6 +261,7 @@ final class LocalSyncManager {
     void clearTrustedPeers() {
         trustedPrefs.edit().clear().apply();
         peers.clear();
+        if (running.get()) rotateLocalSession();
         activeOffer = null;
         pendingPairing = null;
         listener.onPairingStatus("cleared", 0, "Alle lokalt parede telefoner er glemt.");
@@ -480,7 +481,7 @@ final class LocalSyncManager {
         } catch (Exception ignored) {}
     }
 
-    private void receiveHello(JSONObject message, InetAddress source) throws Exception {
+    private synchronized void receiveHello(JSONObject message, InetAddress source) throws Exception {
         String sender = message.optString("node", ""), identity = message.optString("identity", ""),
                 session = message.optString("session", ""), nonce = message.optString("nonce", ""), sig = message.optString("sig", "");
         if (identity.isBlank() || session.isBlank() || nonce.isBlank() || sig.isBlank()) return;
@@ -498,11 +499,16 @@ final class LocalSyncManager {
         if (!verify(identityKey, helloCanonical(sender, identity, session, nonce, sentAt), sig)) return;
         Peer peer = peers.computeIfAbsent(sender, ignored -> new Peer(sender));
         // A signed older HELLO may not roll a peer back to an obsolete ECDH key.
-        if (sentAt <= peer.lastSignedHello) return;
+        // Persist the epoch acceptance floor so restarting the app does not
+        // silently forget that older transport sessions were superseded.
+        long savedFloor = trustedPrefs.getLong("hello_floor." + sender, 0L);
+        if (sentAt <= peer.lastSignedHello || sentAt <= savedFloor) return;
         final String epoch = epochFor(sender, session);
         final boolean changed = !epoch.equals(peer.epoch);
         if (changed) {
             SecretKey nextKey = derivePeerKey(sender, session);
+            if (!trustedPrefs.edit().putLong("hello_floor." + sender, sentAt).commit())
+                throw new SecurityException("Kunne ikke beskytte nøkkelgenerasjon mot tilbakerulling.");
             peer.key = nextKey;
             peer.epoch = epoch;
             peer.clearReplay();
@@ -519,7 +525,7 @@ final class LocalSyncManager {
         });
     }
 
-    private void receivePairRequest(JSONObject message, InetAddress source) throws Exception {
+    private synchronized void receivePairRequest(JSONObject message, InetAddress source) throws Exception {
         PairingOffer offer = activeOffer;
         if (offer == null || System.currentTimeMillis() >= offer.expiresAt || !nodeId.equals(message.optString("hostNode", ""))) return;
         String requesterNode = message.optString("node", ""), requesterIdentity = message.optString("identity", ""),
@@ -541,7 +547,7 @@ final class LocalSyncManager {
         notifyStatus("active", "Verifisert peer: " + peer.name);
     }
 
-    private void receivePairAccept(JSONObject message, InetAddress source) throws Exception {
+    private synchronized void receivePairAccept(JSONObject message, InetAddress source) throws Exception {
         PendingPairing pending = pendingPairing;
         if (pending == null || System.currentTimeMillis() >= pending.expiresAt) return;
         String sender = message.optString("node", "");
