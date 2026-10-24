@@ -136,6 +136,11 @@ public final class MainActivity extends Activity {
             }
 
             @Override
+            public void onChat(String json) {
+                callJavaScript("window.NestLocalSync&&window.NestLocalSync.onChat(" + JSONObject.quote(json) + ")");
+            }
+
+            @Override
             public void onPairingStatus(String state, int trustedPeers, String detail) {
                 callJavaScript("window.NestLocalPairing&&window.NestLocalPairing.onStatus("
                         + JSONObject.quote(state) + "," + trustedPeers + "," + JSONObject.quote(detail) + ")");
@@ -276,6 +281,8 @@ public final class MainActivity extends Activity {
                         .setNegativeButton("Avbryt", (d, w) -> {})
                         .setPositiveButton(wasStrict ? "Bekreft nedgradering" : "Aktiver streng profil", (d, w) -> {
                             if (!modePreferences.edit().putBoolean(THREAT_PROFILE_KEY, !wasStrict).commit()) return;
+                            // Tear down and erase all queued legacy snapshots on profile changes.
+                            if (localSyncManager != null) localSyncManager.stop();
                             // Mute any active PTT stream before reloading the WebView policy.
                             webView.evaluateJavascript("window.NestPTT091&&window.NestPTT091.stop&&window.NestPTT091.stop()", result -> webView.reload());
                         })
@@ -424,13 +431,16 @@ public final class MainActivity extends Activity {
 
     private final class LocalBridge {
         @JavascriptInterface public void start() {
-            if (isHighThreatStrict()) throw new SecurityException("Historiske snapshots er sperret i høyrisikoprofil.");
+            // Strict profile permits per-message local chat, not historical snapshots.
             localSyncManager.start();
         }
         @JavascriptInterface public void stop() { localSyncManager.stop(); }
         @JavascriptInterface public void sendWorkspace(String json) {
             if (isHighThreatStrict()) throw new SecurityException("Ingen forward secrecy for gamle arbeidsflatesnapshots.");
             localSyncManager.sendWorkspace(json);
+        }
+        @JavascriptInterface public int sendChat(String json) {
+            return localSyncManager.sendChat(json);
         }
         @JavascriptInterface public void addPeer(String host) { localSyncManager.addManualPeer(host); }
         @JavascriptInterface public String getLocalAddress() { return localSyncManager.localAddress(); }

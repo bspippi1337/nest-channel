@@ -277,6 +277,23 @@ function renderComments(task) {
 }
 
 function transportReady() { return Boolean(window.NEST_GITHUB_CONNECTED || window.NEST_LOCAL_CONNECTED); }
+window.NEST_ReceiveLocalChat = raw => {
+  try {
+    const incoming = JSON.parse(String(raw));
+    if (!incoming || typeof incoming !== "object"
+        || !/^[0-9a-fA-F-]{36}$/.test(incoming.id)
+        || typeof incoming.text !== "string" || !incoming.text.trim()
+        || incoming.text.length > 4000
+        || typeof incoming.author !== "string" || incoming.author.length > 100
+        || typeof incoming.createdAt !== "string") return false;
+    if (workspace.chat.some(item => item.id === incoming.id)) return false;
+    workspace.chat = [...workspace.chat, normalizeChat(incoming)].slice(-300);
+    // This is a local receive: do not publish old plaintext history again.
+    persist({ sync: false });
+    return true;
+  } catch { return false; }
+};
+
 function renderChat() {
   el.chatList.replaceChildren();
   if (!workspace.chat.length) {
@@ -336,7 +353,21 @@ el.filters.addEventListener("click", event => {
 el.searchInput.addEventListener("input", renderTasks);
 el.chatForm.addEventListener("submit", event => {
   event.preventDefault(); const text = el.chatInput.value.trim(); if (!text || !transportReady()) return;
-  workspace.chat.push({ id: crypto.randomUUID(), author: connectedNickname || el.nickname.value.trim() || "Ukjent", text, createdAt: nowIso(), clientId });
+  if (text.length > 4000) { alert("Meldingen er for lang (maks 4000 tegn)."); return; }
+  const message = { id: crypto.randomUUID(), author: connectedNickname || el.nickname.value.trim() || "Ukjent", text, createdAt: nowIso(), clientId };
+  if (window.NEST_LOCAL_CONNECTED) {
+    try {
+      const receivers = Number(window.NativeLocal?.sendChat?.(JSON.stringify(message)) || 0);
+      if (!receivers && !window.NEST_GITHUB_CONNECTED) {
+        el.statusText.textContent = "Ingen aktivt paret mottaker. Meldingen er ikke sendt.";
+        return; // Keep text in composer; never pretend offline delivery succeeded.
+      }
+    } catch (error) {
+      el.statusText.textContent = "Lokal sending stoppet: " + (error?.message || error);
+      if (!window.NEST_GITHUB_CONNECTED) return;
+    }
+  }
+  workspace.chat.push(message);
   workspace.chat = workspace.chat.slice(-300); el.chatInput.value = ""; persist();
 });
 el.addDependencyButton.addEventListener("click", () => {

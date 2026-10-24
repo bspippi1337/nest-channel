@@ -9,9 +9,9 @@ const {createHmac,randomBytes,createCipheriv,createDecipheriv} = require("node:c
 const read = p => fs.readFileSync(path.resolve(__dirname,"..",p),"utf8");
 function mac(k,s){return createHmac("sha256",k).update(s).digest();}
 function init(shared,epoch,sender,receiver){
- return mac(shared,"NEST-LOCAL-V6-CHAIN:"+epoch+":"+sender+":"+receiver);
+ return mac(shared,"NEST-LOCAL-V7-CHAIN:"+epoch+":"+sender+":"+receiver);
 }
-function step(ck){return {message:mac(ck,"NEST-LOCAL-V6-MESSAGE"),next:mac(ck,"NEST-LOCAL-V6-NEXT")};}
+function step(ck){return {message:mac(ck,"NEST-LOCAL-V7-MESSAGE"),next:mac(ck,"NEST-LOCAL-V7-NEXT")};}
 function pair(epoch="A1B2C3"){
  const root=randomBytes(32);
  return {alice:{send:init(root,epoch,"A","B"),recv:init(root,epoch,"B","A"),ss:0,rs:0},bob:{send:init(root,epoch,"B","A"),recv:init(root,epoch,"A","B"),ss:0,rs:0}};
@@ -37,7 +37,7 @@ function open(device,packet,epoch="A1B2C3"){
  }catch{return null;}
  finally{if(candidate)candidate.fill(0);if(mk)mk.fill(0);}
 }
-test("v6 opposite directional chains agree, multiple messages authenticate",()=>{
+test("v7 opposite directional chains agree, multiple messages authenticate",()=>{
  const {alice,bob}=pair();
  const packets=[seal(alice,"first"),seal(alice,"second"),seal(alice,"third")];
  assert.equal(open(bob,packets[0]),"first");
@@ -46,7 +46,7 @@ test("v6 opposite directional chains agree, multiple messages authenticate",()=>
  const reply=seal(bob,"reply");
  assert.equal(open(alice,reply),"reply");
 });
-test("v6 old message key is not derivable from next chain secret",()=>{
+test("v7 old message key is not derivable from next chain secret",()=>{
  const {alice,bob}=pair();const first=seal(alice,"historic");
  assert.equal(open(bob,first),"historic");
  const stolenNextChain=Buffer.from(bob.recv);
@@ -75,12 +75,12 @@ test("v6 refuses huge sequence jump without ratchet computation",()=>{
 });
 test("Java native local transport consumes message keys and erases past chains",()=>{
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
- assert.match(java,/PROTOCOL_VERSION = 6/);
+ assert.match(java,/PROTOCOL_VERSION = 7/);
  assert.doesNotMatch(java,/peer\.key/);
  assert.match(java,/Arrays\.fill\(root, \(byte\) 0\)/);
- assert.match(java,/NEST-LOCAL-V6-CHAIN:/);
- assert.match(java,/NEST-LOCAL-V6-MESSAGE/);
- assert.match(java,/NEST-LOCAL-V6-NEXT/);
+ assert.match(java,/NEST-LOCAL-V7-CHAIN:/);
+ assert.match(java,/NEST-LOCAL-V7-MESSAGE/);
+ assert.match(java,/NEST-LOCAL-V7-NEXT/);
  assert.match(java,/peer\.sendChain = step\.nextChain/);
  assert.match(java,/Arrays\.fill\(peer\.sendChain, \(byte\) 0\)/);
  assert.match(java,/peer\.receiveChain = candidate/);
