@@ -431,7 +431,9 @@ public final class MainActivity extends Activity {
 
     private final class LocalBridge {
         @JavascriptInterface public void start() {
-            // Strict profile permits per-message local chat, not historical snapshots.
+            // Authoritative native policy: never receive or emit old snapshots
+            // when strict profile is enabled, even if WebView JS misbehaves.
+            localSyncManager.setLegacyWorkspaceAllowed(!isHighThreatStrict());
             localSyncManager.start();
         }
         @JavascriptInterface public void stop() { localSyncManager.stop(); }
