@@ -505,6 +505,11 @@
     el.connectButton.disabled = true;
     setConnectionState("connecting", "Finner kryptert GitHub-kanal …");
     try {
+      if (window.NESTSecurity?.isStrict()) {
+        window.NESTSecurity.requireStrongChannelKey(password);
+        const repoData = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
+        window.NESTSecurity.requirePrivateRepo(repoData);
+      }
       await prepareRoom(channel, password);
       issueNumber = await findOrCreateIssue();
       window.NEST_GITHUB_CONNECTED = true;
