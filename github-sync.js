@@ -311,7 +311,7 @@
     return { owner, repo };
   }
 
-  function roomMarker() { return `<!-- NEST-ROOM:${roomId} -->`; }
+  function roomMarker() { return fsMode ? `<!-- NEST-FS1-ROOM:${roomId} -->` : `<!-- NEST-ROOM:${roomId} -->`; }
 
   async function findOrCreateIssue() {
     const cacheKey = `${ISSUE_KEY_PREFIX}${repoOwner}/${repoName}:${roomId}`;
@@ -351,6 +351,10 @@
       + "/issues/" + issueNumber + "/comments";
   }
   async function fsPost(envelope) {
+    if(window.NESTSecurity?.isStrict?.()) {
+      const repoData=await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
+      window.NESTSecurity.requirePrivateRepo(repoData);
+    }
     const result=await api(fsPath(),{method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({body:FS_MARKER+"\n"+JSON.stringify(envelope)})});
@@ -479,7 +483,7 @@
       return;
     }
     for(const event of [...(workspace.outbox||[])]){
-      if(!["chat","task_comment"].includes(event.type))continue;
+      if(!["chat","task_comment","task_patch"].includes(event.type))continue;
       const current=workspace.outbox.find(x=>x.id===event.id);
       if(!current)continue;
       // Persist the signed ciphertext first; a timeout retries the same sealed
@@ -707,7 +711,7 @@
     // The outbox is inside the encrypted local workspace. An interrupted
     // upload leaves the item queued. Duplicate deliveries merge by event ID.
     for (const event of [...(workspace.outbox || [])]) {
-      if (!["chat", "task_comment"].includes(event.type)) continue;
+      if (!["chat", "task_comment","task_patch"].includes(event.type)) continue;
       const encrypted = await encryptPayload({ kind: "event", event });
       if (encrypted.data.length > MAX_CHUNK) throw new Error("Kryptert hendelse er for stor.");
       const body = COMMENT_MARKER + "\n" + JSON.stringify({
