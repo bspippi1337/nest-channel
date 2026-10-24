@@ -13,7 +13,7 @@ function appContext(events = []) {
  assert.ok(a>=0 && b>a);
  const workspace={version:3,logicalCounter:0,updatedAt:"2026-10-24T00:00:00Z",tasks:[{
   id:uid(44),title:"Task",comments:[],createdAt:"2026-10-24T00:00:00Z",updatedAt:"2026-10-24T00:00:00Z"
- }],chat:[],outbox:events};
+ }],chat:[],outbox:events,deferredEvents:[]};
  const ctx={window:{},workspace,crypto:webcrypto,nowIso:()=>new Date().toISOString(),
   NESTCore:require("../nest-core.js"),persist:()=>ctx.writes++,
   writes:0,normalizeChat:v=>v&&typeof v.text==="string"?v:null,
@@ -126,4 +126,26 @@ test("strict safety gate remains blocked for static-key GitHub events",()=>{
  assert.match(code,/requireForwardSecretTransport\?\.\("github_workspace"\)/);
  assert.throws(()=>policy.requireForwardSecretTransport("github_workspace"),/forward secrecy/);
  assert.equal(JSON.parse(read("SECURITY-READINESS.json")).release_blocked,true);
+});
+
+test("task comment arriving before its task is durably deferred",()=>{
+ const ctx=appContext();
+ ctx.workspace.tasks.length=0;
+ const id=uid(190),when="2026-10-24T12:00:00Z";
+ const ev={id,type:"task_comment",createdAt:when,taskId:uid(44),comment:{id,author:"A",text:"delayed",createdAt:when}};
+ assert.equal(ctx.apply(ev),true);
+ assert.equal(ctx.apply(ev),true);
+ assert.equal(ctx.workspace.deferredEvents.length,1);
+ assert.equal(ctx.workspace.tasks.length,0);
+ assert.ok(ctx.writes>=1);
+ const src=read("app.js");
+ assert.match(src,/const pending = \[\.\.\.workspace\.deferredEvents\]/);
+ assert.match(src,/applyTransportEvent\(event\)/);
+});
+test("GitHub must return persisted numeric comment ID before clearing encrypted outbox",()=>{
+ const code=read("github-sync.js");
+ const segment=code.slice(code.indexOf("async function publishPendingEvents"),code.indexOf("async function attemptPublish"));
+ assert.match(segment,/Number\.isSafeInteger\(saved\?\.id\)/);
+ assert.match(segment,/throw new Error\("GitHub bekreftet ikke lagret hendelse/);
+ assert.ok(segment.indexOf("throw new Error") < segment.indexOf("workspace.outbox = workspace.outbox.filter"));
 });
