@@ -150,6 +150,23 @@ function queueLocalEvent(type, data) {
   workspace.outbox.push(event);
   return event;
 }
+// Task transport sends ONLY modified fields. An unchanged old title or comment
+// must never be copied into newly encrypted GitHub events after key rotation.
+function queueTaskPatch(task, fields) {
+  if (!fields.length) return;
+  const patch = {};
+  for (const field of fields) {
+    if (!NESTCore.TASK_FIELDS.includes(field)) continue;
+    patch[field] = {value:task[field],clock:task.fieldUpdatedAt[field]};
+  }
+  try {
+    queueLocalEvent("task_patch", {
+      taskId:task.id,taskCreatedAt:task.createdAt,patch
+    });
+  } catch (error) {
+    el.statusText.textContent = "Oppgave oppdatert lokalt, men ikke sendt: "+error.message;
+  }
+}
 function applyTransportEvent(event) {
   if (!event || typeof event !== "object" || typeof event.id !== "string"
       || typeof event.createdAt !== "string" || !/^[0-9a-f-]{36}$/i.test(event.id)) return false;
@@ -171,6 +188,36 @@ function applyTransportEvent(event) {
       return true;
     }
     task.comments = NESTCore.mergeById(task.comments, [comment], "createdAt");
+  } else if (event.type === "task_patch") {
+    if(typeof event.taskId!=="string" || !/^[0-9a-fA-F-]{36}$/.test(event.taskId)
+       || !event.patch || typeof event.patch!=="object" || Array.isArray(event.patch))return false;
+    const fields=Object.keys(event.patch);
+    if(!fields.length || fields.length>NESTCore.TASK_FIELDS.length
+       || fields.some(f=>!NESTCore.TASK_FIELDS.includes(f)))return false;
+    let task=workspace.tasks.find(t=>t.id===event.taskId);
+    if(!task) {
+      const title=event.patch.title?.value;
+      if(typeof title!=="string" || !title.trim() || title.length>280)return false;
+      task=normalizeTask({id:event.taskId,title,createdAt:event.taskCreatedAt||event.createdAt});
+      workspace.tasks.push(task);
+    }
+    for(const field of fields){
+      const data=event.patch[field];
+      if(!data || typeof data.clock!=="string" || data.clock.length>120)return false;
+      if(typeof data.value==="string" && data.value.length>300)return false;
+      if(["labels","dependsOn"].includes(field)
+         && (!Array.isArray(data.value) || data.value.length>32
+           || data.value.some(v=>typeof v!=="string" || v.length>90)))return false;
+      if(["done","deleted"].includes(field) && typeof data.value!=="boolean")return false;
+      if(NESTCore.compareClock(data.clock,task.fieldUpdatedAt[field])>=0){
+        const previous=task[field];
+        task[field]=data.value;
+        if(field==="dependsOn" && NESTCore.wouldCreateCycle(workspace.tasks,task.id,data.value.find(x=>x===task.id)||""))
+          task[field]=previous;
+        else task.fieldUpdatedAt[field]=data.clock;
+      }
+    }
+    task.updatedAt=event.createdAt;
   } else return false;
   persist({ sync: false });
   return true;
@@ -263,7 +310,7 @@ function createTaskCard(task) {
   check.className = "task-check";
   check.checked = task.done;
   check.setAttribute("aria-label", `Marker ${task.title} som ${task.done ? "ikke ferdig" : "ferdig"}`);
-  check.addEventListener("change", () => { task.done = check.checked; touchTask(task, ["done"]); persist(); });
+  check.addEventListener("change", () => { task.done = check.checked; touchTask(task, ["done"]); queueTaskPatch(task,["done"]); persist(); });
 
   const open = document.createElement("button");
   open.type = "button";
@@ -307,7 +354,7 @@ function renderDependencies(task) {
       const row = document.createElement("div"); row.className = "dependency-row";
       const text = document.createElement("span"); text.textContent = `${dependency.done ? "✓" : "○"} ${dependency.title}`;
       const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button"; remove.textContent = "Fjern";
-      remove.addEventListener("click", () => { task.dependsOn = task.dependsOn.filter(id => id !== dependency.id); touchTask(task, ["dependsOn"]); persist(); });
+      remove.addEventListener("click", () => { task.dependsOn = task.dependsOn.filter(id => id !== dependency.id); touchTask(task, ["dependsOn"]); queueTaskPatch(task,["dependsOn"]); persist(); });
       row.append(text, remove); el.dependencyList.append(row);
     });
   }
@@ -380,8 +427,10 @@ el.taskForm.addEventListener("submit", event => {
   event.preventDefault(); const title = el.taskTitle.value.trim(); if (!title) return;
   const now = nowIso(); const dependsOn = el.taskDependency.value ? [el.taskDependency.value] : [];
   const clock = nextLogicalClock(); const fieldUpdatedAt = Object.fromEntries(NESTCore.TASK_FIELDS.map(field => [field, clock]));
-  workspace.tasks.push({ id: crypto.randomUUID(), title, assignee: el.taskAssignee.value.trim(), done: false, deleted: false,
-    labels: [], dependsOn, comments: [], createdAt: now, updatedAt: now, fieldUpdatedAt });
+  const created = { id: crypto.randomUUID(), title, assignee: el.taskAssignee.value.trim(), done: false, deleted: false,
+    labels: [], dependsOn, comments: [], createdAt: now, updatedAt: now, fieldUpdatedAt };
+  workspace.tasks.push(created);
+  queueTaskPatch(created,NESTCore.TASK_FIELDS);
   el.taskForm.reset(); persist(); el.taskTitle.focus();
 });
 el.filters.addEventListener("click", event => {
@@ -400,7 +449,7 @@ el.chatForm.addEventListener("submit", event => {
 el.addDependencyButton.addEventListener("click", () => {
   const task = taskById(el.editTaskId.value); const dependencyId = el.addDependencySelect.value;
   if (!task || !dependencyId || wouldCreateCycle(task.id, dependencyId)) return;
-  task.dependsOn = [...new Set([...task.dependsOn, dependencyId])]; touchTask(task, ["dependsOn"]); persist();
+  task.dependsOn = [...new Set([...task.dependsOn, dependencyId])]; touchTask(task, ["dependsOn"]); queueTaskPatch(task,["dependsOn"]); persist();
 });
 el.addCommentButton.addEventListener("click", () => {
   const task = taskById(el.editTaskId.value); const text = el.commentText.value.trim(); if (!task || !text) return;
@@ -415,11 +464,11 @@ el.saveTaskButton.addEventListener("click", () => {
   const nextAssignee = el.editAssignee.value.trim(); const nextLabels = parseLabels(el.editLabels.value); const changed = [];
   if (task.title !== title) changed.push("title"); if (task.assignee !== nextAssignee) changed.push("assignee");
   if (JSON.stringify(task.labels) !== JSON.stringify(nextLabels)) changed.push("labels");
-  task.title = title; task.assignee = nextAssignee; task.labels = nextLabels; if (changed.length) touchTask(task, changed); persist(); el.taskDialog.close();
+  task.title = title; task.assignee = nextAssignee; task.labels = nextLabels; if (changed.length) {touchTask(task, changed);queueTaskPatch(task,changed);} persist(); el.taskDialog.close();
 });
 el.deleteTaskButton.addEventListener("click", () => {
   const task = taskById(el.editTaskId.value); if (!task || !confirm(`Slett «${task.title}»?`)) return;
-  task.deleted = true; touchTask(task, ["deleted"]); persist(); el.taskDialog.close();
+  task.deleted = true; touchTask(task, ["deleted"]); queueTaskPatch(task,["deleted"]); persist(); el.taskDialog.close();
 });
 
 loadSettings(); render();
