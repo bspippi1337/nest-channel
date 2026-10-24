@@ -179,14 +179,13 @@ final class LocalSyncManager {
             sessionPublicBase64 = b64(fresh.getPublic().getEncoded());
             for (Peer peer : peers.values()) {
                 peer.clearReplay();
-                peer.key = null;
-                peer.epoch = "";
+                                peer.epoch = "";
             }
             assemblies.clear();
             if (running.get()) announce();
         } catch (Exception error) {
             // Fail closed: never continue to send under an expired traffic key.
-            for (Peer peer : peers.values()) { peer.clearReplay(); peer.key = null; peer.epoch = ""; }
+            for (Peer peer : peers.values()) { peer.clearReplay(); peer.epoch = ""; }
             if (running.get()) listener.onError("ECDH-nøkkelbytte mislyktes; lokal sending stoppet: " + messageFor(error));
         }
     }
@@ -204,7 +203,7 @@ final class LocalSyncManager {
             try { if (multicastLock.isHeld()) multicastLock.release(); } catch (Exception ignored) {}
             multicastLock = null;
         }
-        for (Peer peer : peers.values()) { peer.clearReplay(); peer.key = null; }
+        for (Peer peer : peers.values()) { peer.clearReplay(); }
         peers.clear();
         assemblies.clear();
         pendingPairing = null;
@@ -269,7 +268,7 @@ final class LocalSyncManager {
             listener.onError("Tilbaketrekking feilet. Lokal synk er stoppet; kontroller lagringen.");
             return;
         }
-        for (Peer peer : peers.values()) { peer.clearReplay(); peer.key = null; }
+        for (Peer peer : peers.values()) { peer.clearReplay(); }
         peers.clear();
         manualTargets.clear();
         activeOffer = null;
@@ -391,7 +390,7 @@ final class LocalSyncManager {
 
     private void sendWorkspaceNow(String json) {
         for (Peer peer : peers.values()) {
-            if (!peer.trusted || peer.key == null || peer.address == null) continue;
+            if (!peer.trusted || peer.sendChain == null || peer.address == null) continue;
             try { sendWorkspaceToPeer(json, peer); }
             catch (Exception error) { if (running.get()) listener.onError("Lokal kryptert sending feilet: " + messageFor(error)); }
         }
@@ -401,7 +400,7 @@ final class LocalSyncManager {
         byte[] compressed = gzip(json);
         if (compressed.length > MAX_WORKSPACE_BYTES) throw new SecurityException("Arbeidsdata overstiger sikker pakkestørrelse.");
         final String epoch = peer.epoch;
-        if (peer.key == null || peer.sendChain == null || epoch.isBlank()) return;
+        if (peer.sendChain == null || epoch.isBlank()) return;
         if (peer.nextSendSequence == Long.MAX_VALUE)
             throw new SecurityException("Sesjonsnummer er brukt opp; nytt nøkkelbytte kreves.");
         final long sequence = peer.nextSendSequence++;
@@ -471,7 +470,7 @@ final class LocalSyncManager {
             if ("pair_accept".equals(type)) { receivePairAccept(message, source); return; }
             if ("hello".equals(type)) { receiveHello(message, source); return; }
             Peer peer = peers.get(sender);
-            if (peer == null || !peer.trusted || peer.key == null) return;
+            if (peer == null || !peer.trusted || peer.receiveChain == null) return;
             if (!"secure_workspace".equals(type)) return;
             final String epoch = message.optString("epoch", "");
             if (epoch.isBlank() || !epoch.equals(peer.epoch)) return;
@@ -554,13 +553,14 @@ final class LocalSyncManager {
         final String epoch = epochFor(sender, session);
         final boolean changed = !epoch.equals(peer.epoch);
         if (changed) {
-            SecretKey nextKey = derivePeerKey(sender, session);
-            if (!trustedPrefs.edit().putLong("hello_floor." + sender, sentAt).commit())
-                throw new SecurityException("Kunne ikke beskytte nøkkelgenerasjon mot tilbakerulling.");
-            peer.clearReplay();
-            peer.key = nextKey;
-            peer.epoch = epoch;
-            initializeChains(peer);
+            byte[] root = derivePeerKey(sender, session);
+            try {
+                if (!trustedPrefs.edit().putLong("hello_floor." + sender, sentAt).commit())
+                    throw new SecurityException("Kunne ikke beskytte nøkkelgenerasjon mot tilbakerulling.");
+                peer.clearReplay();
+                peer.epoch = epoch;
+                initializeChains(peer, root);
+            } finally { Arrays.fill(root, (byte) 0); }
             assemblies.keySet().removeIf(k -> k.startsWith(sender + ":"));
         }
         peer.lastSignedHello = sentAt;
@@ -588,10 +588,12 @@ final class LocalSyncManager {
         trustPeer(requesterNode, requesterIdentity, message.optString("name", "NEST-telefon"));
         Peer peer = peers.computeIfAbsent(requesterNode, ignored -> new Peer(requesterNode));
         peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime(); peer.name = message.optString("name", "NEST-telefon");
-        peer.clearReplay();
-        peer.key = derivePeerKey(requesterNode, requesterSession);
-        peer.epoch = epochFor(requesterNode, requesterSession);
-        initializeChains(peer);
+        byte[] root = derivePeerKey(requesterNode, requesterSession);
+        try {
+            peer.clearReplay();
+            peer.epoch = epochFor(requesterNode, requesterSession);
+            initializeChains(peer, root);
+        } finally { Arrays.fill(root, (byte) 0); }
         peer.trusted = true; manualTargets.add(source);
         sendPairAccept(source, requesterNode, nonce); activeOffer = null;
         listener.onPairingStatus("paired", trustedPeerCount(), "Paret med " + peer.name);
@@ -618,10 +620,12 @@ final class LocalSyncManager {
         trustPeer(sender, identity, message.optString("name", pending.name));
         Peer peer = peers.computeIfAbsent(sender, ignored -> new Peer(sender));
         peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime(); peer.name = message.optString("name", pending.name);
-        peer.clearReplay();
-        peer.key = derivePeerKey(sender, session);
-        peer.epoch = epochFor(sender, session);
-        initializeChains(peer);
+        byte[] root = derivePeerKey(sender, session);
+        try {
+            peer.clearReplay();
+            peer.epoch = epochFor(sender, session);
+            initializeChains(peer, root);
+        } finally { Arrays.fill(root, (byte) 0); }
         peer.trusted = true; manualTargets.add(source); pendingPairing = null;
         listener.onPairingStatus("paired", trustedPeerCount(), "Paret med " + peer.name);
         notifyStatus("active", "Verifisert peer: " + peer.name);
@@ -645,7 +649,7 @@ final class LocalSyncManager {
         generator.initialize(new ECGenParameterSpec("secp256r1"), RANDOM); return generator.generateKeyPair();
     }
 
-    private synchronized SecretKey derivePeerKey(String peerNodeId, String encodedSessionKey) throws Exception {
+    private synchronized byte[] derivePeerKey(String peerNodeId, String encodedSessionKey) throws Exception {
         KeyPair activeSession = sessionKeyPair;
         if (activeSession == null) throw new IllegalStateException("Mangler aktiv ECDH-sesjon");
         KeyAgreement agreement = KeyAgreement.getInstance("ECDH"); agreement.init(activeSession.getPrivate());
@@ -664,8 +668,9 @@ final class LocalSyncManager {
             expand.update((byte) 1);
             byte[] keyBytes = expand.doFinal();
             Arrays.fill(prk, (byte) 0);
-            try { return new SecretKeySpec(keyBytes, "AES"); }
-            finally { Arrays.fill(keyBytes, (byte) 0); }
+            // Caller immediately initializes the two chains and clears this
+            // root byte array. No long-lived per-epoch transport key is retained.
+            return keyBytes;
         } finally { Arrays.fill(shared, (byte) 0); }
     }
 
@@ -680,13 +685,17 @@ final class LocalSyncManager {
     }
     // A directional HMAC chain under each authenticated ECDH epoch.
     // This is a *symmetric sender/receiver ratchet*, not Signal Double Ratchet.
-    private void initializeChains(Peer peer) throws Exception {
-        byte[] root = peer.key.getEncoded();
+    private void initializeChains(Peer peer, byte[] root) throws Exception {
         if (root == null || root.length != 32) throw new SecurityException("Ugyldig sesjonsnøkkel");
+        // Caller always wipes root, including if either HMAC initialization fails.
+        byte[] send = hmacBytes(root, "NEST-LOCAL-V6-CHAIN:" + peer.epoch + ":" + nodeId + ":" + peer.nodeId);
         try {
-            peer.sendChain = hmacBytes(root, "NEST-LOCAL-V6-CHAIN:" + peer.epoch + ":" + nodeId + ":" + peer.nodeId);
             peer.receiveChain = hmacBytes(root, "NEST-LOCAL-V6-CHAIN:" + peer.epoch + ":" + peer.nodeId + ":" + nodeId);
-        } finally { Arrays.fill(root, (byte) 0); }
+            peer.sendChain = send;
+        } catch (Exception error) {
+            Arrays.fill(send, (byte) 0);
+            throw error;
+        }
     }
     private static byte[] hmacBytes(byte[] key, String label) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
@@ -773,7 +782,7 @@ final class LocalSyncManager {
     }
 
     private int trustedActivePeerCount() {
-        int count = 0; for (Peer peer : peers.values()) if (peer.trusted && peer.key != null) count++; return count;
+        int count = 0; for (Peer peer : peers.values()) if (peer.trusted && peer.sendChain != null && peer.receiveChain != null) count++; return count;
     }
     private void notifyStatus(String state, String detail) { listener.onStatus(state, trustedActivePeerCount(), detail); }
 
@@ -825,7 +834,7 @@ final class LocalSyncManager {
 
     private static final class Peer {
         final String nodeId; volatile InetAddress address; volatile long lastSeen; volatile String name = "NEST-telefon";
-        volatile SecretKey key; volatile boolean trusted;
+        volatile boolean trusted;
         volatile String epoch = "";
         volatile byte[] sendChain, receiveChain;
         volatile long lastSignedHello;
