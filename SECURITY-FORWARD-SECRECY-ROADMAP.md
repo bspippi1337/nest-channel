@@ -94,3 +94,5 @@ Local v4 packets cannot interoperate with local v3 packets. Run the same experim
 - libsignal is a candidate for pair messaging, but its maintainers explicitly state third-party use is unsupported and its AGPLv3 license must be evaluated. MLS RFC 9420 is the open group standard. NEST does not yet have a validated third-party library integrated.
 
 Sources: https://signal.org/docs/specifications/doubleratchet/ ; https://www.rfc-editor.org/rfc/rfc9420 ; https://github.com/signalapp/libsignal
+
+**Critical limitation for v6:** The temporary ECDH private key remains live until the periodic rotation. An attacker extracting that private key and the remote public key can recompute the *epoch root* and message chains, despite per-message HMAC key erasure. Thus v6 is not a complete forward-secret Double Ratchet. Do not label its intra-epoch traffic as meeting the strong Double Ratchet security claim, and do not ship for high-risk messaging. Native protocol integration with periodic DH ratchet steps in a reviewed library is required.
