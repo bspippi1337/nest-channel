@@ -284,6 +284,18 @@ function renderComments(task) {
 }
 
 function transportReady() { return Boolean(window.NEST_GITHUB_CONNECTED || window.NEST_LOCAL_CONNECTED); }
+window.NEST_ChatReceipt = (messageId, peerNodeId) => {
+  if (!/^[0-9a-fA-F-]{36}$/.test(String(messageId))
+      || !/^[0-9a-fA-F-]{36}$/.test(String(peerNodeId))) return false;
+  const message = workspace.chat.find(item => item.id === messageId && item.clientId === clientId);
+  if (!message) return false;
+  message.delivery = "mottatt på enhet";
+  // Strict-mode receipts and chat history remain in memory, not workspace storage.
+  if (strictEphemeralChat()) renderChat();
+  else persist({ sync: false });
+  return true;
+};
+
 window.NEST_ReceiveLocalChat = raw => {
   try {
     const incoming = JSON.parse(String(raw));
@@ -314,7 +326,14 @@ function renderChat() {
     const author = document.createElement("strong"); author.textContent = message.author || "Ukjent";
     const time = document.createElement("time"); time.textContent = formatDate(message.createdAt);
     const p = document.createElement("p"); p.textContent = message.text;
-    meta.append(author, time); article.append(meta, p); el.chatList.append(article);
+    meta.append(author, time);
+    if (message.delivery) {
+      const receipt = document.createElement("span");
+      receipt.className = "chat-delivery";
+      receipt.textContent = " · " + message.delivery;
+      meta.append(receipt);
+    }
+    article.append(meta, p); el.chatList.append(article);
   });
   el.chatList.scrollTop = el.chatList.scrollHeight;
 }
@@ -378,8 +397,10 @@ el.chatForm.addEventListener("submit", event => {
       if (!window.NEST_GITHUB_CONNECTED) return;
     }
   }
+  if (window.NEST_LOCAL_CONNECTED) message.delivery = "venter på kvittering";
   workspace.chat.push(message);
-  workspace.chat = workspace.chat.slice(-300); el.chatInput.value = ""; persist();
+  workspace.chat = workspace.chat.slice(-300); el.chatInput.value = "";
+  persist({ sync: !strictEphemeralChat() });
 });
 el.addDependencyButton.addEventListener("click", () => {
   const task = taskById(el.editTaskId.value); const dependencyId = el.addDependencySelect.value;

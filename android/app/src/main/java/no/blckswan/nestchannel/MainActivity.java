@@ -141,6 +141,12 @@ public final class MainActivity extends Activity {
             }
 
             @Override
+            public void onChatReceipt(String id, String peerNodeId) {
+                callJavaScript("window.NestLocalSync&&window.NestLocalSync.onReceipt("
+                        + JSONObject.quote(id) + "," + JSONObject.quote(peerNodeId) + ")");
+            }
+
+            @Override
             public void onPairingStatus(String state, int trustedPeers, String detail) {
                 callJavaScript("window.NestLocalPairing&&window.NestLocalPairing.onStatus("
                         + JSONObject.quote(state) + "," + trustedPeers + "," + JSONObject.quote(detail) + ")");

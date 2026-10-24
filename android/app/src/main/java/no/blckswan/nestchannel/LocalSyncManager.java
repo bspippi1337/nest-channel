@@ -59,13 +59,14 @@ final class LocalSyncManager {
         void onStatus(String state, int peers, String detail);
         void onWorkspace(String json);
         void onChat(String json);
+        void onChatReceipt(String id, String peerNodeId);
         void onPairingStatus(String state, int trustedPeers, String detail);
         void onError(String message);
     }
 
     private static final int PORT = 42420;
     private static final String GROUP_ADDRESS = "239.42.42.42";
-    private static final int PROTOCOL_VERSION = 7;
+    private static final int PROTOCOL_VERSION = 8;
     private static final long SESSION_ROTATE_MS = 15 * 60_000L;
     private static final long MAX_SIGNED_HELLO_SKEW_MS = 90_000L;
     private static final int MAX_FRAGMENT_COUNT = 128;
@@ -449,10 +450,14 @@ final class LocalSyncManager {
     }
 
     private synchronized void sendEncryptedToPeer(String json, Peer peer, String messageType) throws Exception {
-        if (!"secure_workspace".equals(messageType) && !"secure_chat".equals(messageType))
+        if (!"secure_workspace".equals(messageType) && !"secure_chat".equals(messageType)
+                && !"secure_receipt".equals(messageType))
             throw new SecurityException("Ugyldig kryptert meldingstype");
-        byte[] compressed = gzip(json);
-        if (compressed.length > MAX_WORKSPACE_BYTES) throw new SecurityException("Arbeidsdata overstiger sikker pakkestørrelse.");
+        // No compression for user-controlled chat or acknowledgements.
+        byte[] plaintext = "secure_workspace".equals(messageType)
+                ? gzip(json) : json.getBytes(StandardCharsets.UTF_8);
+        if (plaintext.length > ("secure_workspace".equals(messageType) ? MAX_WORKSPACE_BYTES : 8192))
+            throw new SecurityException("Kryptert pakke er for stor.");
         final String epoch = peer.epoch;
         if (peer.sendChain == null || epoch.isBlank()) return;
         if (peer.nextSendSequence == Long.MAX_VALUE)
@@ -469,7 +474,7 @@ final class LocalSyncManager {
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(step.messageKey, "AES"), new GCMParameterSpec(128, iv));
             cipher.updateAAD(aadForSequence(peer.nodeId, epoch, sequence, messageType));
-            encoded = b64(cipher.doFinal(compressed));
+            encoded = b64(cipher.doFinal(plaintext));
         } finally {
             Arrays.fill(step.messageKey, (byte) 0);
         }
@@ -525,7 +530,8 @@ final class LocalSyncManager {
             if ("hello".equals(type)) { receiveHello(message, source); return; }
             Peer peer = peers.get(sender);
             if (peer == null || !peer.trusted || peer.receiveChain == null) return;
-            if (!"secure_workspace".equals(type) && !"secure_chat".equals(type)) return;
+            if (!"secure_workspace".equals(type) && !"secure_chat".equals(type)
+                    && !"secure_receipt".equals(type)) return;
             if ("secure_workspace".equals(type) && !legacyWorkspaceAllowed) return;
             final String epoch = message.optString("epoch", "");
             if (epoch.isBlank() || !epoch.equals(peer.epoch)) return;
@@ -568,7 +574,15 @@ final class LocalSyncManager {
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
                 cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(messageKey, "AES"), new GCMParameterSpec(128, nonce));
                 cipher.updateAAD(aadForSequence(sender, epoch, sequence, type));
-                workspace = gunzip(cipher.doFinal(Base64.decode(assembly.join(), Base64.NO_WRAP)));
+                byte[] opened = cipher.doFinal(Base64.decode(assembly.join(), Base64.NO_WRAP));
+                try {
+                    if ("secure_workspace".equals(type)) {
+                        workspace = gunzip(opened);
+                    } else {
+                        if (opened.length > 8192) return;
+                        workspace = new String(opened, StandardCharsets.UTF_8);
+                    }
+                } finally { Arrays.fill(opened, (byte) 0); }
                 if (sequence <= peer.highestReceivedSequence || !peer.rememberAuthenticated(messageId)) return;
                 Arrays.fill(peer.receiveChain, (byte) 0);
                 peer.receiveChain = candidate;
@@ -592,6 +606,16 @@ final class LocalSyncManager {
                 chat.put("author", display + " · " + sender.substring(0, Math.min(8, sender.length())));
                 chat.put("clientId", sender);
                 listener.onChat(chat.toString());
+                // ACK only confirms peer-side decryption and parsing, not a read.
+                JSONObject receipt = new JSONObject();
+                receipt.put("id", chat.getString("id"));
+                try { sendEncryptedToPeer(receipt.toString(), peer, "secure_receipt"); }
+                catch (Exception error) { listener.onError("Mottakskvittering feilet: " + messageFor(error)); }
+            } else if ("secure_receipt".equals(type)) {
+                JSONObject receipt = new JSONObject(workspace);
+                String ackId = receipt.optString("id", "");
+                if (!ackId.matches("[0-9a-fA-F-]{36}")) return;
+                listener.onChatReceipt(ackId, sender);
             } else {
                 listener.onWorkspace(workspace);
             }
@@ -735,7 +759,7 @@ final class LocalSyncManager {
             byte[] prk = extract.doFinal(shared);
             Mac expand = Mac.getInstance("HmacSHA256");
             expand.init(new SecretKeySpec(prk, "HmacSHA256"));
-            expand.update("NEST-LOCAL-V7-TRAFFIC".getBytes(StandardCharsets.UTF_8));
+            expand.update("NEST-LOCAL-V8-TRAFFIC".getBytes(StandardCharsets.UTF_8));
             expand.update((byte) 1);
             byte[] keyBytes = expand.doFinal();
             Arrays.fill(prk, (byte) 0);
@@ -749,7 +773,7 @@ final class LocalSyncManager {
         boolean first = nodeId.compareTo(peerNodeId) <= 0;
         String context = first ? nodeId + ":" + sessionPublicBase64 + ":" + peerNodeId + ":" + peerSession
                 : peerNodeId + ":" + peerSession + ":" + nodeId + ":" + sessionPublicBase64;
-        return ("NEST-LOCAL-V7-TRANSCRIPT:" + context).getBytes(StandardCharsets.UTF_8);
+        return ("NEST-LOCAL-V8-TRANSCRIPT:" + context).getBytes(StandardCharsets.UTF_8);
     }
     private String epochFor(String peerNodeId, String peerSession) throws Exception {
         return fingerprint(sessionTranscript(peerNodeId, peerSession)).substring(0, 32);
@@ -759,9 +783,9 @@ final class LocalSyncManager {
     private void initializeChains(Peer peer, byte[] root) throws Exception {
         if (root == null || root.length != 32) throw new SecurityException("Ugyldig sesjonsnøkkel");
         // Caller always wipes root, including if either HMAC initialization fails.
-        byte[] send = hmacBytes(root, "NEST-LOCAL-V7-CHAIN:" + peer.epoch + ":" + nodeId + ":" + peer.nodeId);
+        byte[] send = hmacBytes(root, "NEST-LOCAL-V8-CHAIN:" + peer.epoch + ":" + nodeId + ":" + peer.nodeId);
         try {
-            peer.receiveChain = hmacBytes(root, "NEST-LOCAL-V7-CHAIN:" + peer.epoch + ":" + peer.nodeId + ":" + nodeId);
+            peer.receiveChain = hmacBytes(root, "NEST-LOCAL-V8-CHAIN:" + peer.epoch + ":" + peer.nodeId + ":" + nodeId);
             peer.sendChain = send;
         } catch (Exception error) {
             Arrays.fill(send, (byte) 0);
@@ -775,9 +799,9 @@ final class LocalSyncManager {
     }
     private static MessageStep ratchetStep(byte[] chain) throws Exception {
         if (chain == null || chain.length != 32) throw new SecurityException("Kjedetilstand mangler");
-        byte[] mk = hmacBytes(chain, "NEST-LOCAL-V7-MESSAGE");
+        byte[] mk = hmacBytes(chain, "NEST-LOCAL-V8-MESSAGE");
         try {
-            return new MessageStep(mk, hmacBytes(chain, "NEST-LOCAL-V7-NEXT"));
+            return new MessageStep(mk, hmacBytes(chain, "NEST-LOCAL-V8-NEXT"));
         } catch (Exception error) {
             Arrays.fill(mk, (byte) 0);
             throw error;
@@ -789,7 +813,7 @@ final class LocalSyncManager {
     }
 
     private byte[] aadForEpoch(String peerNodeId, String epoch) {
-        return ("NEST-LOCAL-V7-AEAD:" + new String(aadFor(peerNodeId), StandardCharsets.UTF_8) + ":" + epoch)
+        return ("NEST-LOCAL-V8-AEAD:" + new String(aadFor(peerNodeId), StandardCharsets.UTF_8) + ":" + epoch)
                 .getBytes(StandardCharsets.UTF_8);
     }
     private byte[] aadForSequence(String peerNodeId, String epoch, long sequence, String messageType) {
@@ -800,7 +824,7 @@ final class LocalSyncManager {
     private byte[] aadFor(String peerNodeId) {
         String first = nodeId.compareTo(peerNodeId) <= 0 ? nodeId : peerNodeId;
         String second = nodeId.compareTo(peerNodeId) <= 0 ? peerNodeId : nodeId;
-        return ("NEST-LOCAL-V7:" + first + ":" + second).getBytes(StandardCharsets.UTF_8);
+        return ("NEST-LOCAL-V8:" + first + ":" + second).getBytes(StandardCharsets.UTF_8);
     }
 
     private String sign(String canonical) throws Exception {
@@ -820,13 +844,13 @@ final class LocalSyncManager {
     }
 
     private static String helloCanonical(String node, String identity, String session, String nonce, long sentAt) {
-        return "NEST-V7|hello|" + node + "|" + identity + "|" + session + "|" + nonce + "|" + sentAt;
+        return "NEST-V8|hello|" + node + "|" + identity + "|" + session + "|" + nonce + "|" + sentAt;
     }
     private static String pairRequestCanonical(String host, String requester, String identity, String session, String nonce) {
-        return "NEST-V7|pair-request|" + host + "|" + requester + "|" + identity + "|" + session + "|" + nonce;
+        return "NEST-V8|pair-request|" + host + "|" + requester + "|" + identity + "|" + session + "|" + nonce;
     }
     private static String pairAcceptCanonical(String requester, String host, String identity, String session, String reqNonce, String hostNonce) {
-        return "NEST-V7|pair-accept|" + requester + "|" + host + "|" + identity + "|" + session + "|" + reqNonce + "|" + hostNonce;
+        return "NEST-V8|pair-accept|" + requester + "|" + host + "|" + identity + "|" + session + "|" + reqNonce + "|" + hostNonce;
     }
 
     private String trustedIdentity(String peerNodeId) { return trustedPrefs.getString("peer." + peerNodeId, ""); }
