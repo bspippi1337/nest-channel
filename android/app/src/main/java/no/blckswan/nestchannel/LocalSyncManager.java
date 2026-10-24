@@ -64,7 +64,7 @@ final class LocalSyncManager {
 
     private static final int PORT = 42420;
     private static final String GROUP_ADDRESS = "239.42.42.42";
-    private static final int PROTOCOL_VERSION = 5;
+    private static final int PROTOCOL_VERSION = 6;
     private static final long SESSION_ROTATE_MS = 15 * 60_000L;
     private static final long MAX_SIGNED_HELLO_SKEW_MS = 90_000L;
     private static final int MAX_FRAGMENT_COUNT = 128;
@@ -178,15 +178,15 @@ final class LocalSyncManager {
             sessionKeyPair = fresh;
             sessionPublicBase64 = b64(fresh.getPublic().getEncoded());
             for (Peer peer : peers.values()) {
+                peer.clearReplay();
                 peer.key = null;
                 peer.epoch = "";
-                peer.clearReplay();
             }
             assemblies.clear();
             if (running.get()) announce();
         } catch (Exception error) {
             // Fail closed: never continue to send under an expired traffic key.
-            for (Peer peer : peers.values()) { peer.key = null; peer.epoch = ""; }
+            for (Peer peer : peers.values()) { peer.clearReplay(); peer.key = null; peer.epoch = ""; }
             if (running.get()) listener.onError("ECDH-nøkkelbytte mislyktes; lokal sending stoppet: " + messageFor(error));
         }
     }
@@ -204,6 +204,7 @@ final class LocalSyncManager {
             try { if (multicastLock.isHeld()) multicastLock.release(); } catch (Exception ignored) {}
             multicastLock = null;
         }
+        for (Peer peer : peers.values()) { peer.clearReplay(); peer.key = null; }
         peers.clear();
         assemblies.clear();
         pendingPairing = null;
@@ -267,6 +268,7 @@ final class LocalSyncManager {
             listener.onError("Tilbaketrekking feilet. Lokal synk er stoppet; kontroller lagringen.");
             return;
         }
+        for (Peer peer : peers.values()) { peer.clearReplay(); peer.key = null; }
         peers.clear();
         manualTargets.clear();
         activeOffer = null;
@@ -397,17 +399,26 @@ final class LocalSyncManager {
     private synchronized void sendWorkspaceToPeer(String json, Peer peer) throws Exception {
         byte[] compressed = gzip(json);
         if (compressed.length > MAX_WORKSPACE_BYTES) throw new SecurityException("Arbeidsdata overstiger sikker pakkestørrelse.");
-        final SecretKey trafficKey = peer.key;
         final String epoch = peer.epoch;
-        if (trafficKey == null || epoch.isBlank()) return;
+        if (peer.key == null || peer.sendChain == null || epoch.isBlank()) return;
         if (peer.nextSendSequence == Long.MAX_VALUE)
             throw new SecurityException("Sesjonsnummer er brukt opp; nytt nøkkelbytte kreves.");
         final long sequence = peer.nextSendSequence++;
+        // Every workspace transport envelope consumes exactly one message key.
+        // Releasing an old CK and MK limits historical network-capture exposure.
+        MessageStep step = ratchetStep(peer.sendChain);
+        Arrays.fill(peer.sendChain, (byte) 0);
+        peer.sendChain = step.nextChain;
         byte[] iv = new byte[12]; RANDOM.nextBytes(iv);
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, trafficKey, new GCMParameterSpec(128, iv));
-        cipher.updateAAD(aadForSequence(peer.nodeId, epoch, sequence));
-        String encoded = b64(cipher.doFinal(compressed));
+        String encoded;
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(step.messageKey, "AES"), new GCMParameterSpec(128, iv));
+            cipher.updateAAD(aadForSequence(peer.nodeId, epoch, sequence));
+            encoded = b64(cipher.doFinal(compressed));
+        } finally {
+            Arrays.fill(step.messageKey, (byte) 0);
+        }
         int total = Math.max(1, (int) Math.ceil(encoded.length() / (double) MAX_PACKET_BYTES));
         if (total > MAX_FRAGMENT_COUNT) throw new SecurityException("For mange krypterte fragmenter.");
         String messageId = UUID.randomUUID().toString();
@@ -482,17 +493,35 @@ final class LocalSyncManager {
             }
             assembly.add(part - 1, data); if (!assembly.complete()) return;
             assemblies.remove(key);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             byte[] nonce = Base64.decode(assembly.iv, Base64.NO_WRAP);
-            if (nonce.length != 12) return;
-            cipher.init(Cipher.DECRYPT_MODE, peer.key, new GCMParameterSpec(128, nonce));
-            cipher.updateAAD(aadForSequence(sender, epoch, sequence));
-            final byte[] plaintext = cipher.doFinal(Base64.decode(assembly.join(), Base64.NO_WRAP));
-            final String workspace = gunzip(plaintext);
-            // Re-authenticated ciphertext cannot be processed more than once in
-            // this epoch, including when a captured UDP packet is replayed.
-            if (sequence <= peer.highestReceivedSequence || !peer.rememberAuthenticated(messageId)) return;
-            peer.highestReceivedSequence = sequence;
+            if (nonce.length != 12 || peer.receiveChain == null) return;
+            if (sequence - peer.highestReceivedSequence > 128) return; // bounded lost-message advancement
+            // Work on a disposable copy. A forged packet must not consume the
+            // receiver's chain state or prevent a real message from arriving.
+            byte[] candidate = peer.receiveChain.clone();
+            byte[] messageKey = null;
+            final String workspace;
+            try {
+                for (long n = peer.highestReceivedSequence + 1; n <= sequence; n++) {
+                    MessageStep step = ratchetStep(candidate);
+                    Arrays.fill(candidate, (byte) 0);
+                    candidate = step.nextChain;
+                    if (messageKey != null) Arrays.fill(messageKey, (byte) 0);
+                    messageKey = step.messageKey;
+                }
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(messageKey, "AES"), new GCMParameterSpec(128, nonce));
+                cipher.updateAAD(aadForSequence(sender, epoch, sequence));
+                workspace = gunzip(cipher.doFinal(Base64.decode(assembly.join(), Base64.NO_WRAP)));
+                if (sequence <= peer.highestReceivedSequence || !peer.rememberAuthenticated(messageId)) return;
+                Arrays.fill(peer.receiveChain, (byte) 0);
+                peer.receiveChain = candidate;
+                candidate = null;
+                peer.highestReceivedSequence = sequence;
+            } finally {
+                if (messageKey != null) Arrays.fill(messageKey, (byte) 0);
+                if (candidate != null) Arrays.fill(candidate, (byte) 0);
+            }
             peer.lastSeen = SystemClock.elapsedRealtime();
             listener.onWorkspace(workspace);
             notifyStatus("active", "AES-256-GCM · mottok verifisert oppdatering");
@@ -527,9 +556,10 @@ final class LocalSyncManager {
             SecretKey nextKey = derivePeerKey(sender, session);
             if (!trustedPrefs.edit().putLong("hello_floor." + sender, sentAt).commit())
                 throw new SecurityException("Kunne ikke beskytte nøkkelgenerasjon mot tilbakerulling.");
+            peer.clearReplay();
             peer.key = nextKey;
             peer.epoch = epoch;
-            peer.clearReplay();
+            initializeChains(peer);
             assemblies.keySet().removeIf(k -> k.startsWith(sender + ":"));
         }
         peer.lastSignedHello = sentAt;
@@ -557,9 +587,11 @@ final class LocalSyncManager {
         trustPeer(requesterNode, requesterIdentity, message.optString("name", "NEST-telefon"));
         Peer peer = peers.computeIfAbsent(requesterNode, ignored -> new Peer(requesterNode));
         peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime(); peer.name = message.optString("name", "NEST-telefon");
+        peer.clearReplay();
         peer.key = derivePeerKey(requesterNode, requesterSession);
         peer.epoch = epochFor(requesterNode, requesterSession);
-        peer.clearReplay(); peer.trusted = true; manualTargets.add(source);
+        initializeChains(peer);
+        peer.trusted = true; manualTargets.add(source);
         sendPairAccept(source, requesterNode, nonce); activeOffer = null;
         listener.onPairingStatus("paired", trustedPeerCount(), "Paret med " + peer.name);
         notifyStatus("active", "Verifisert peer: " + peer.name);
@@ -585,8 +617,10 @@ final class LocalSyncManager {
         trustPeer(sender, identity, message.optString("name", pending.name));
         Peer peer = peers.computeIfAbsent(sender, ignored -> new Peer(sender));
         peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime(); peer.name = message.optString("name", pending.name);
+        peer.clearReplay();
         peer.key = derivePeerKey(sender, session);
-        peer.epoch = epochFor(sender, session); peer.clearReplay();
+        peer.epoch = epochFor(sender, session);
+        initializeChains(peer);
         peer.trusted = true; manualTargets.add(source); pendingPairing = null;
         listener.onPairingStatus("paired", trustedPeerCount(), "Paret med " + peer.name);
         notifyStatus("active", "Verifisert peer: " + peer.name);
@@ -625,7 +659,7 @@ final class LocalSyncManager {
             byte[] prk = extract.doFinal(shared);
             Mac expand = Mac.getInstance("HmacSHA256");
             expand.init(new SecretKeySpec(prk, "HmacSHA256"));
-            expand.update("NEST-LOCAL-V5-TRAFFIC".getBytes(StandardCharsets.UTF_8));
+            expand.update("NEST-LOCAL-V6-TRAFFIC".getBytes(StandardCharsets.UTF_8));
             expand.update((byte) 1);
             byte[] keyBytes = expand.doFinal();
             Arrays.fill(prk, (byte) 0);
@@ -638,13 +672,43 @@ final class LocalSyncManager {
         boolean first = nodeId.compareTo(peerNodeId) <= 0;
         String context = first ? nodeId + ":" + sessionPublicBase64 + ":" + peerNodeId + ":" + peerSession
                 : peerNodeId + ":" + peerSession + ":" + nodeId + ":" + sessionPublicBase64;
-        return ("NEST-LOCAL-V5-TRANSCRIPT:" + context).getBytes(StandardCharsets.UTF_8);
+        return ("NEST-LOCAL-V6-TRANSCRIPT:" + context).getBytes(StandardCharsets.UTF_8);
     }
     private String epochFor(String peerNodeId, String peerSession) throws Exception {
         return fingerprint(sessionTranscript(peerNodeId, peerSession)).substring(0, 32);
     }
+    // A directional HMAC chain under each authenticated ECDH epoch.
+    // This is a *symmetric sender/receiver ratchet*, not Signal Double Ratchet.
+    private void initializeChains(Peer peer) throws Exception {
+        byte[] root = peer.key.getEncoded();
+        if (root == null || root.length != 32) throw new SecurityException("Ugyldig sesjonsnøkkel");
+        try {
+            peer.sendChain = hmacBytes(root, "NEST-LOCAL-V6-CHAIN:" + peer.epoch + ":" + nodeId + ":" + peer.nodeId);
+            peer.receiveChain = hmacBytes(root, "NEST-LOCAL-V6-CHAIN:" + peer.epoch + ":" + peer.nodeId + ":" + nodeId);
+        } finally { Arrays.fill(root, (byte) 0); }
+    }
+    private static byte[] hmacBytes(byte[] key, String label) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(key, "HmacSHA256"));
+        return mac.doFinal(label.getBytes(StandardCharsets.UTF_8));
+    }
+    private static MessageStep ratchetStep(byte[] chain) throws Exception {
+        if (chain == null || chain.length != 32) throw new SecurityException("Kjedetilstand mangler");
+        byte[] mk = hmacBytes(chain, "NEST-LOCAL-V6-MESSAGE");
+        try {
+            return new MessageStep(mk, hmacBytes(chain, "NEST-LOCAL-V6-NEXT"));
+        } catch (Exception error) {
+            Arrays.fill(mk, (byte) 0);
+            throw error;
+        }
+    }
+    private static final class MessageStep {
+        final byte[] messageKey, nextChain;
+        MessageStep(byte[] messageKey, byte[] nextChain) { this.messageKey = messageKey; this.nextChain = nextChain; }
+    }
+
     private byte[] aadForEpoch(String peerNodeId, String epoch) {
-        return ("NEST-LOCAL-V5-AEAD:" + new String(aadFor(peerNodeId), StandardCharsets.UTF_8) + ":" + epoch)
+        return ("NEST-LOCAL-V6-AEAD:" + new String(aadFor(peerNodeId), StandardCharsets.UTF_8) + ":" + epoch)
                 .getBytes(StandardCharsets.UTF_8);
     }
     private byte[] aadForSequence(String peerNodeId, String epoch, long sequence) {
@@ -655,7 +719,7 @@ final class LocalSyncManager {
     private byte[] aadFor(String peerNodeId) {
         String first = nodeId.compareTo(peerNodeId) <= 0 ? nodeId : peerNodeId;
         String second = nodeId.compareTo(peerNodeId) <= 0 ? peerNodeId : nodeId;
-        return ("NEST-LOCAL-V5:" + first + ":" + second).getBytes(StandardCharsets.UTF_8);
+        return ("NEST-LOCAL-V6:" + first + ":" + second).getBytes(StandardCharsets.UTF_8);
     }
 
     private String sign(String canonical) throws Exception {
@@ -675,13 +739,13 @@ final class LocalSyncManager {
     }
 
     private static String helloCanonical(String node, String identity, String session, String nonce, long sentAt) {
-        return "NEST-V5|hello|" + node + "|" + identity + "|" + session + "|" + nonce + "|" + sentAt;
+        return "NEST-V6|hello|" + node + "|" + identity + "|" + session + "|" + nonce + "|" + sentAt;
     }
     private static String pairRequestCanonical(String host, String requester, String identity, String session, String nonce) {
-        return "NEST-V5|pair-request|" + host + "|" + requester + "|" + identity + "|" + session + "|" + nonce;
+        return "NEST-V6|pair-request|" + host + "|" + requester + "|" + identity + "|" + session + "|" + nonce;
     }
     private static String pairAcceptCanonical(String requester, String host, String identity, String session, String reqNonce, String hostNonce) {
-        return "NEST-V5|pair-accept|" + requester + "|" + host + "|" + identity + "|" + session + "|" + reqNonce + "|" + hostNonce;
+        return "NEST-V6|pair-accept|" + requester + "|" + host + "|" + identity + "|" + session + "|" + reqNonce + "|" + hostNonce;
     }
 
     private String trustedIdentity(String peerNodeId) { return trustedPrefs.getString("peer." + peerNodeId, ""); }
@@ -762,12 +826,17 @@ final class LocalSyncManager {
         final String nodeId; volatile InetAddress address; volatile long lastSeen; volatile String name = "NEST-telefon";
         volatile SecretKey key; volatile boolean trusted;
         volatile String epoch = "";
+        volatile byte[] sendChain, receiveChain;
         volatile long lastSignedHello;
         final LinkedHashSet<String> acceptedIds = new LinkedHashSet<>();
         volatile long nextSendSequence = 1L;
         volatile long highestReceivedSequence = 0L;
         synchronized void clearReplay() {
             acceptedIds.clear();
+            if (sendChain != null) Arrays.fill(sendChain, (byte) 0);
+            if (receiveChain != null) Arrays.fill(receiveChain, (byte) 0);
+            sendChain = null;
+            receiveChain = null;
             nextSendSequence = 1L;
             highestReceivedSequence = 0L;
         }

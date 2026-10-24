@@ -99,7 +99,7 @@ test("native Android owns the threat-profile policy and microphone gate", () => 
 
 test("local v4 sessions rotate, authenticate freshness, reject replay and bound resource use", () => {
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
- assert.match(java,/PROTOCOL_VERSION = 5/);
+ assert.match(java,/PROTOCOL_VERSION = 6/);
  assert.match(java,/SESSION_ROTATE_MS = 15 \* 60_000L/);
  assert.match(java,/scheduleAtFixedRate\(this::rotateLocalSession/);
  assert.match(java,/sessionKeyPair = fresh/);
