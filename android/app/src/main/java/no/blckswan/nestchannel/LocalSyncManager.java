@@ -215,7 +215,16 @@ final class LocalSyncManager {
 
     void sendWorkspace(String json) {
         if (json == null || json.isBlank()) return;
-        lastWorkspace = json;
+        // Keep only the nonhistorical task snapshot as a periodic retransmit.
+        // Individual chat events and receipts must not become "lastWorkspace"
+        // or be rebroadcast indefinitely after acknowledgement.
+        boolean transientPacket = false;
+        try {
+            JSONObject payload = new JSONObject(json);
+            String kind = payload.optString("kind", "");
+            transientPacket = "event".equals(kind) || "ack".equals(kind);
+        } catch (Exception ignored) {}
+        if (!transientPacket) lastWorkspace = json;
         ScheduledExecutorService activeScheduler = scheduler;
         if (!running.get() || activeScheduler == null) return;
         activeScheduler.execute(() -> sendWorkspaceNow(json));
