@@ -103,7 +103,7 @@ test("local v4 sessions rotate, authenticate freshness, reject replay and bound 
  assert.match(java,/SESSION_ROTATE_MS = 15 \* 60_000L/);
  assert.match(java,/scheduleAtFixedRate\(this::rotateLocalSession/);
  assert.match(java,/sessionKeyPair = fresh/);
- assert.match(java,/peer\.key = null/);
+ assert.match(java,/peer\.clearReplay\(\)/);
  assert.match(java,/MAX_SIGNED_HELLO_SKEW_MS/);
  assert.match(java,/helloCanonical\(sender, identity, session, nonce, sentAt\)/);
  assert.match(java,/sentAt <= peer\.lastSignedHello/);
