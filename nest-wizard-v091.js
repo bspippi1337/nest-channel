@@ -183,9 +183,16 @@
   function cacheIssue(room) {
     window.localStorage.setItem("nest.github.issue.v1:" + state.repo + ":" + room, String(state.issue));
   }
+  async function fsRoomHash() {
+    const [owner, repo] = state.repo.split("/");
+    return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(
+      "nest-fs-room:" + owner.toLowerCase() + "/" + repo.toLowerCase() + ":"
+      + state.channel.trim().toLocaleLowerCase("nb")))));
+  }
   async function findOrCreateIssue() {
-    const hash = await roomHash(state.channel);
-    const marker = "<!-- NEST-ROOM:" + hash + " -->";
+    const isFs = window.NESTSecurity?.isStrict();
+    const hash = isFs ? await fsRoomHash() : await roomHash(state.channel);
+    const marker = (isFs ? "<!-- NEST-FS-ROOM:" : "<!-- NEST-ROOM:") + hash + " -->";
     const [owner, repo] = state.repo.split("/");
     const root = "/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo);
     for (let page = 1; page <= 3; page++) {
@@ -195,7 +202,7 @@
       if (issues.length < 100) break;
     }
     const created = await request(root + "/issues", { method: "POST", body: {
-      title: "[NEST SYNC] " + hash.slice(0, 12),
+      title: (isFs ? "[NEST FS1] " : "[NEST SYNC] ") + hash.slice(0, 12),
       body: marker + "\n\nEncrypted NEST sync. No plaintext or keys."
     } });
     if (!created.number) throw new Error("GitHub opprettet ikke kanal-Issue.");
@@ -205,8 +212,10 @@
   async function validateIssue() {
     const [owner, repo] = state.repo.split("/");
     const issue = await request("/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues/" + state.issue);
-    const hash = await roomHash(state.channel);
-    if (issue.state !== "open" || !String(issue.body || "").includes("<!-- NEST-ROOM:" + hash + " -->")) {
+    const isFs = window.NESTSecurity?.isStrict();
+    const hash = isFs ? await fsRoomHash() : await roomHash(state.channel);
+    const marker = (isFs ? "<!-- NEST-FS-ROOM:" : "<!-- NEST-ROOM:") + hash + " -->";
+    if (issue.state !== "open" || !String(issue.body || "").includes(marker)) {
       throw new Error("Invitasjonen peker på feil eller stengt kanal.");
     }
     cacheIssue(hash);
@@ -254,7 +263,9 @@
         || !/^[A-Za-z0-9_-]{43}$/.test(state.key)) throw new Error("Oppsettet mangler identitet, kanal eller nøkkel.");
     await verifyRepo();
     await validateIssue();
-    await encryptedRoundTrip();
+    // Strict FS1 onboarding establishes the isolated, empty message mailbox;
+    // it never uploads or round-trips legacy static-key workspace ciphertext.
+    if (!window.NESTSecurity?.isStrict()) await encryptedRoundTrip();
     const hash = await roomHash(state.channel);
     native().saveSecret("channel_password", state.key);
     if (native().loadSecret("channel_password") !== state.key) throw new Error("Android kunne ikke lagre kanalnøkkelen.");
@@ -408,7 +419,9 @@
       note(body, "Nøkkelen vises ikke på GitHub. Høyrisikoprofil krever direkte QR-skanning.");
       button(body, "Opprett og test kanalen", async () => {
         if (!validChannel(state.channel)) throw new Error("Ugyldig kanalnavn.");
-        await verifyRepo(); await findOrCreateIssue(); await encryptedRoundTrip(); next("invite");
+        await verifyRepo(); await findOrCreateIssue();
+        if (!window.NESTSecurity?.isStrict()) await encryptedRoundTrip();
+        next("invite");
       }, "primary");
       return;
     }
@@ -444,7 +457,12 @@
     }
     if (state.step === "ready") {
       tag("div", "✓", "nest91-success", body);
-      note(body, "E2EE-testen ble skrevet til GitHub, lest tilbake og dekryptert på denne telefonen. NEST har lagret nøkkelen i Android Keystore-beskyttet lagring.");
+      if (window.NESTSecurity?.isStrict()) {
+        note(body, "Privat FS1-kanal klargjort. Ved første tilkobling publiserer hver telefon en autentisert nøkkelpakke. Når begge er paret, kan krypterte enkeltmeldinger sendes.");
+        note(body, "Ende-til-ende-test med to fysiske telefoner gjenstår.");
+      } else {
+        note(body, "E2EE-testen ble skrevet til GitHub, lest tilbake og dekryptert på denne telefonen. NEST har lagret nøkkelen i Android Keystore-beskyttet lagring.");
+      }
       note(body, "Dette beviser funksjon for én telefon, ikke sikkerhet mot kompromitterte telefoner, metadata-lekkasje eller framtidig GitHub-nedetid.");
       button(body, "Åpne kanalen", () => location.reload(), "primary");
     }
