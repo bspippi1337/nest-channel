@@ -32,3 +32,6 @@ Additional narrowing: NativeBridge now rejects access to internal OAuth PKCE sta
 
 ## Native permission boundary (additional hardening)
 Strict mode is stored as a native Android preference and defaults to enabled. WebView JavaScript can no longer silently disable the risk-reduction policy by changing localStorage. Changing it requires an explicit native Android confirmation dialogue. Most importantly, Android's WebChromeClient *denies microphone permission requests* independently of the JavaScript walkie-talkie button when strict mode is active. This is a risk-reduction control, not an isolation guarantee against root/OS compromise.
+
+## Fail-closed release gate
+The signing workflow now checks `SECURITY-READINESS.json` and refuses to use signing secrets while any mandatory independent acceptance item remains unverified. Passing CI compilation is never treated as proof of forward secrecy, against active compromise, or of physical two-phone behavior. The gate validates evidence metadata; independent humans must validate the underlying evidence. No automatic release or merge is authorized while the gate is blocked.

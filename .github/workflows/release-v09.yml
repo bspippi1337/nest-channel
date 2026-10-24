@@ -34,6 +34,9 @@ jobs:
       - name: Syntax and core tests
         run: npm run check
 
+      - name: Mandatory independent security acceptance
+        run: npm run security:gate
+
       - name: Require signing secrets
         env:
           KEYSTORE_B64: ${{ secrets.NEST_RELEASE_KEYSTORE_B64 }}
