@@ -6,10 +6,11 @@
   if (root) root.NESTSecurity = api;
 })(typeof window !== "undefined" ? window : null, function () {
   "use strict";
-  const KEY = "nest.security.threat-profile.v1";
+  // The authoritative profile is held in Android preferences, never in
+  // writable WebView localStorage. Browsers without the native bridge fail closed.
   const isStrict = () => {
-    try { return typeof localStorage === "undefined" || localStorage.getItem(KEY) !== "standard"; }
-    catch { return true; } // Denied storage must fail closed.
+    try { return typeof window === "undefined" || window.NativeHost?.isHighThreatMode?.() !== false; }
+    catch { return true; }
   };
   function requireNative() {
     if (isStrict() && (typeof window === "undefined" || !window.NativeHost?.saveSecret || !window.NativeHost?.loadSecret))
@@ -54,14 +55,12 @@
     };
     refresh();
     btn.addEventListener("click", () => {
-      const downgrade = isStrict();
-      const message = downgrade
-        ? "Slå AV høyrisikoprofil? Offentlige repoer, kortere passord, utklippstavle og WebRTC med IP-eksponering blir tilgjengelig. IKKE bruk i risikoområder."
-        : "Slå PÅ høyrisikoprofil? Offentlige repoer, korte passord, utklippstavle og WebRTC sperres. Appen er fortsatt IKKE godkjent for høyrisikobruk.";
-      if (!window.confirm(message)) return;
-      try { localStorage.setItem(KEY, downgrade ? "standard" : "strict"); }
-      catch { alert("Sikkerhetsprofilen kunne ikke lagres. Streng modus forblir aktiv."); return; }
-      location.reload();
+      if (typeof window.NativeHost?.requestThreatProfileToggle !== "function") {
+        window.alert("Sikkerhetsprofilen kan bare endres med Android-bekreftelse i NEST APK.");
+        return;
+      }
+      // Android, not JavaScript, displays and authorizes the security downgrade.
+      window.NativeHost.requestThreatProfileToggle();
     });
     container.prepend(btn);
   }

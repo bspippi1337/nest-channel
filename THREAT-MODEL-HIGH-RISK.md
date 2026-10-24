@@ -29,3 +29,6 @@ Additional narrowing: NativeBridge now rejects access to internal OAuth PKCE sta
 - The native WebView denies non-asset/non-GitHub-API requests; unknown bundled asset paths return 404 instead of external networking.
 - Every GitHub workspace publish validates the private repository before uploading; TOCTOU changes remain theoretically possible, so private GitHub is still not guaranteed anonymous.
 - High-threat browser fallback is blocked where secrets would otherwise be stored without Android Keystore. Android APK avoids WebView sessionStorage for channel key handoff.
+
+## Native permission boundary (additional hardening)
+Strict mode is stored as a native Android preference and defaults to enabled. WebView JavaScript can no longer silently disable the risk-reduction policy by changing localStorage. Changing it requires an explicit native Android confirmation dialogue. Most importantly, Android's WebChromeClient *denies microphone permission requests* independently of the JavaScript walkie-talkie button when strict mode is active. This is a risk-reduction control, not an isolation guarantee against root/OS compromise.

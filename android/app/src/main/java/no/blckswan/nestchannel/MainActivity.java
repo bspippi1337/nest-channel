@@ -3,6 +3,7 @@ package no.blckswan.nestchannel;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
@@ -64,6 +65,7 @@ public final class MainActivity extends Activity {
     private static final String AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
     private static final String OAUTH_REDIRECT = "nestchannel://oauth/callback";
     private static final String MODE_PREFERENCES = "nest.sync.mode";
+    private static final String THREAT_PROFILE_KEY = "nest.high_threat.strict";
     private static final String PKCE_VERIFIER_KEY = "github_pkce_verifier";
     private static final String PKCE_STATE_KEY = "github_pkce_state";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -78,6 +80,10 @@ public final class MainActivity extends Activity {
     private boolean scanningNestInvite = false;
     private volatile boolean pageReady = false;
     private volatile String pendingPkceResult = "";
+
+    private boolean isHighThreatStrict() {
+        return modePreferences == null || modePreferences.getBoolean(THREAT_PROFILE_KEY, true);
+    }
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     @Override
@@ -161,7 +167,10 @@ public final class MainActivity extends Activity {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> {
+                    // JS policy is advisory; Android independently denies capture in strict mode.
+                    if (isHighThreatStrict()) { request.deny(); return; }
                     Uri origin = request.getOrigin();
+                    if (origin == null) { request.deny(); return; }
                     if (!"https".equalsIgnoreCase(origin.getScheme())
                             || !"appassets.androidplatform.net".equalsIgnoreCase(origin.getHost())) {
                         request.deny();
@@ -251,6 +260,29 @@ public final class MainActivity extends Activity {
     }
 
     private final class NativeBridge {
+        @JavascriptInterface
+        public boolean isHighThreatMode() { return isHighThreatStrict(); }
+
+        @JavascriptInterface
+        public void requestThreatProfileToggle() {
+            runOnUiThread(() -> {
+                final boolean wasStrict = isHighThreatStrict();
+                final String message = wasStrict
+                        ? "Deaktivering åpner for IP-eksponering via WebRTC, offentlige repoer og utklippstavle. Skal ikke brukes til kildevern eller i krigsområder. Bytt til standard beta?"
+                        : "Aktivering sperrer direkte radio, offentlige repoer og kopiering av hemmelige invitasjoner. Det gir ikke sikkerhetssertifisering. Aktiver streng profil?";
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("NEST sikkerhetsprofil")
+                        .setMessage(message)
+                        .setNegativeButton("Avbryt", (d, w) -> {})
+                        .setPositiveButton(wasStrict ? "Bekreft nedgradering" : "Aktiver streng profil", (d, w) -> {
+                            if (!modePreferences.edit().putBoolean(THREAT_PROFILE_KEY, !wasStrict).commit()) return;
+                            // Mute any active PTT stream before reloading the WebView policy.
+                            webView.evaluateJavascript("window.NestPTT091&&window.NestPTT091.stop&&window.NestPTT091.stop()", result -> webView.reload());
+                        })
+                        .show();
+            });
+        }
+
         @JavascriptInterface
         public void saveSecret(String key, String value) {
             if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");

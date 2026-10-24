@@ -83,3 +83,16 @@ test("native app cannot leave channel password in WebView sessionStorage", () =>
  assert.match(js,/if \(nativeStore\(\)\)/);
  assert.match(read("high-threat.js"),/function requireNative\(\)/);
 });
+
+test("native Android owns the threat-profile policy and microphone gate", () => {
+ const java = read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+ const js = read("high-threat.js");
+ assert.match(java, /THREAT_PROFILE_KEY/);
+ assert.match(java, /getBoolean\(THREAT_PROFILE_KEY, true\)/);
+ assert.match(java, /if \(isHighThreatStrict\(\)\) \{ request\.deny\(\); return; \}/);
+ assert.match(java, /new AlertDialog\.Builder\(MainActivity\.this\)/);
+ assert.match(java, /requestThreatProfileToggle\(\)/);
+ assert.match(js, /window\.NativeHost\?\.isHighThreatMode\?\.\(\)/);
+ assert.match(js, /window\.NativeHost\.requestThreatProfileToggle\(\)/);
+ assert.doesNotMatch(js, /localStorage\.setItem\(KEY/);
+});
