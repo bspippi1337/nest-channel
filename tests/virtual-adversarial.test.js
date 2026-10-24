@@ -20,10 +20,10 @@ const pub=kp=>kp.publicKey.export({format:"der",type:"spki"}).toString("base64")
 const keypair=()=>generateKeyPairSync("ec",{namedCurve:"prime256v1"});
 function sessionFor(local,remote){
  const nodes=[[local.id,pub(local.session)],[remote.id,pub(remote.session)]].sort((a,b)=>a[0].localeCompare(b[0]));
- const transcript="NEST-LOCAL-V7-TRANSCRIPT:"+nodes.map(x=>x.join(":")).join(":");
+ const transcript="NEST-LOCAL-V8-TRANSCRIPT:"+nodes.map(x=>x.join(":")).join(":");
  const raw=diffieHellman({privateKey:local.session.privateKey,publicKey:remote.session.publicKey});
  const salt=createHash("sha256").update(transcript).digest();
- const key=Buffer.from(hkdfSync("sha256",raw,salt,Buffer.from("NEST-LOCAL-V7-TRAFFIC"),32));
+ const key=Buffer.from(hkdfSync("sha256",raw,salt,Buffer.from("NEST-LOCAL-V8-TRAFFIC"),32));
  raw.fill(0);
  return {key,epoch:createHash("sha256").update(transcript).digest("hex").toUpperCase().slice(0,32)};
 }
@@ -52,7 +52,7 @@ function acceptHello(local,remote,offer,source,now){
 function seal(sender,receiver,json,sequence){
  const session=sessionFor(sender,receiver),iv=randomBytes(12);
  const [a,b]=[sender.id,receiver.id].sort();
- const aad=Buffer.from("NEST-LOCAL-V7-AEAD:NEST-LOCAL-V7:"+a+":"+b+":"+session.epoch+":seq:"+sequence+":kind:secure_workspace");
+ const aad=Buffer.from("NEST-LOCAL-V8-AEAD:NEST-LOCAL-V8:"+a+":"+b+":"+session.epoch+":seq:"+sequence+":kind:secure_workspace");
  const c=createCipheriv("aes-256-gcm",session.key,iv);
  c.setAAD(aad);
  const data=Buffer.concat([c.update(JSON.stringify(json),"utf8"),c.final()]);
@@ -64,7 +64,7 @@ function receive(receiver,sender,frame,source){
  const d=createDecipheriv("aes-256-gcm",session.key,frame.iv);
  // The raw untrusted sequence is bound to GCM AAD. It cannot be rewritten.
  const [a,b]=[sender.id,receiver.id].sort();
- d.setAAD(Buffer.from("NEST-LOCAL-V7-AEAD:NEST-LOCAL-V7:"+a+":"+b+":"+session.epoch+":seq:"+frame.sequence+":kind:secure_workspace"));
+ d.setAAD(Buffer.from("NEST-LOCAL-V8-AEAD:NEST-LOCAL-V8:"+a+":"+b+":"+session.epoch+":seq:"+frame.sequence+":kind:secure_workspace"));
  d.setAuthTag(frame.tag);
  try{
   const value=JSON.parse(Buffer.concat([d.update(frame.data),d.final()]).toString("utf8"));
@@ -217,7 +217,7 @@ test("what-if #11: release gate is unchanged despite a successful virtual lab",(
  assert.equal(readiness.release_blocked,true);
  assert.ok(readiness.criteria.every(x=>x.status!=="verified"));
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
- assert.match(java,/PROTOCOL_VERSION = 7/);
+ assert.match(java,/PROTOCOL_VERSION = 8/);
  assert.match(java,/private synchronized void sendEncryptedToPeer/);
  assert.match(java,/private synchronized void receiveMessage/);
 });

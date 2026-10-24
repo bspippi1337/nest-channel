@@ -96,3 +96,9 @@ Local v4 packets cannot interoperate with local v3 packets. Run the same experim
 Sources: https://signal.org/docs/specifications/doubleratchet/ ; https://www.rfc-editor.org/rfc/rfc9420 ; https://github.com/signalapp/libsignal
 
 **Critical limitation for v6:** The temporary ECDH private key remains live until the periodic rotation. An attacker extracting that private key and the remote public key can recompute the *epoch root* and message chains, despite per-message HMAC key erasure. Thus v6 is not a complete forward-secret Double Ratchet. Do not label its intra-epoch traffic as meeting the strong Double Ratchet security claim, and do not ship for high-risk messaging. Native protocol integration with periodic DH ratchet steps in a reviewed library is required.
+
+## Local v8 beta: authenticated receipt and no chat compression
+- Native chat and acknowledgements are separate AES-256-GCM authenticated packet kinds. Receipt confirms the peer's native listener accepted/decrypted the message; it does **not** imply the human read it. No automatic resend or offline delivery guarantee is claimed.
+- Strict-mode historical chat was already made volatile in the v7 branch: local workspace persistence omits the chat array. The v8 receipt display is likewise UI-only in strict mode.
+- Uncompressed chat and receipt payloads eliminate compression-length leakage from those packet kinds. Legacy workspace snapshots remain gated to standard beta.
+- Local wire protocol v8 requires both phones to use the same experimental build. Production signing and release gate remain untouched.

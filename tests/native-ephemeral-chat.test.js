@@ -16,7 +16,7 @@ test("strict Android mode permits secure single-chat transport but rejects old s
 });
 test("native v7 message frame contains only one incoming chat and never a stored workspace",()=>{
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
- assert.match(java,/PROTOCOL_VERSION = 7/);
+ assert.match(java,/PROTOCOL_VERSION = 8/);
  assert.match(java,/int sendChat\(String json\)/);
  assert.match(java,/if \(recipients == 0\) return 0;/);
  assert.match(java,/activeScheduler\.execute\(\(\) -> sendChatNow\(json\)\)/);
@@ -43,7 +43,7 @@ test("outgoing native message is not marked sent without an active paired receiv
 });
 test("authenticated frame type binding prevents converting snapshot ciphertext into chat",()=>{
  const key=randomBytes(32),iv=randomBytes(12);
- const aad=(type)=>Buffer.from("NEST-LOCAL-V7-AEAD:two-phones:epoch-1:seq:1:kind:"+type);
+ const aad=(type)=>Buffer.from("NEST-LOCAL-V8-AEAD:two-phones:epoch-1:seq:1:kind:"+type);
  const enc=createCipheriv("aes-256-gcm",key,iv);
  enc.setAAD(aad("secure_workspace"));
  const ct=Buffer.concat([enc.update("historic workspace","utf8"),enc.final()]);
@@ -107,4 +107,37 @@ test("high-risk native chat requires recent authenticated peer and a usable rout
  assert.match(ui,/!window\.NESTSecurity\?\.isStrict\?\.\(\)/);
  const app=read("app.js");
  assert.match(app,/if \(strictEphemeralChat\(\) && !window\.NEST_LOCAL_CONNECTED\)/);
+});
+
+test("v8 encrypted receipts are bound to wire type and acknowledge peer-side receipt only",()=>{
+ const j=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
+ const act=read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+ const app=read("app.js"), ui=read("ux-v06.js");
+ assert.match(j,/sendEncryptedToPeer\(receipt\.toString\(\), peer, "secure_receipt"\)/);
+ assert.match(j,/listener\.onChatReceipt\(ackId, sender\)/);
+ assert.match(j,/":kind:" \+ messageType/);
+ assert.match(act,/onChatReceipt\(String id, String peerNodeId\)/);
+ assert.match(ui,/onReceipt\(id, peerId\)/);
+ assert.match(app,/window\.NEST_ChatReceipt =/);
+ assert.match(app,/venter på kvittering/);
+ assert.match(app,/mottatt på enhet/);
+});
+test("v8 small chat payloads skip compression and never include old workspace history",()=>{
+ const j=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
+ assert.match(j,/byte\[\] plaintext = "secure_workspace"\.equals\(messageType\)/);
+ assert.match(j,/\? gzip\(json\) : json\.getBytes\(StandardCharsets\.UTF_8\)/);
+ assert.match(j,/workspace = new String\(opened, StandardCharsets\.UTF_8\)/);
+ assert.match(j,/if \(opened\.length > 8192\) return/);
+ assert.match(j,/Arrays\.fill\(opened, \(byte\) 0\)/);
+});
+test("a forged encrypted receipt for a different envelope kind fails AES-GCM",()=>{
+ const key=randomBytes(32),iv=randomBytes(12);
+ const context="NEST-LOCAL-V8-AEAD:two-phones:epoch-1:seq:13:kind:";
+ const c=createCipheriv("aes-256-gcm",key,iv);
+ c.setAAD(Buffer.from(context+"secure_chat"));
+ const ct=Buffer.concat([c.update('{"id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}'),c.final()]);
+ const tag=c.getAuthTag();
+ const d=createDecipheriv("aes-256-gcm",key,iv);
+ d.setAAD(Buffer.from(context+"secure_receipt"));d.setAuthTag(tag);
+ assert.throws(()=>Buffer.concat([d.update(ct),d.final()]));
 });

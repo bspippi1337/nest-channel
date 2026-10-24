@@ -13,10 +13,10 @@ function session(aNode, a, bNode, b) {
   const [first,second] = aNode.localeCompare(bNode) <= 0
     ? [[aNode,a],[bNode,b]] : [[bNode,b],[aNode,a]];
   const pub = key => key.publicKey.export({type:"spki",format:"der"}).toString("base64");
-  const transcript = "NEST-LOCAL-V7-TRANSCRIPT:" + first[0] + ":" + pub(first[1]) + ":" + second[0] + ":" + pub(second[1]);
+  const transcript = "NEST-LOCAL-V8-TRANSCRIPT:" + first[0] + ":" + pub(first[1]) + ":" + second[0] + ":" + pub(second[1]);
   const secret = diffieHellman({privateKey:a.privateKey,publicKey:b.publicKey});
   const salt = createHash("sha256").update(transcript).digest();
-  const key = Buffer.from(hkdfSync("sha256",secret,salt,Buffer.from("NEST-LOCAL-V7-TRAFFIC"),32));
+  const key = Buffer.from(hkdfSync("sha256",secret,salt,Buffer.from("NEST-LOCAL-V8-TRAFFIC"),32));
   const epoch = createHash("sha256").update(transcript).digest("hex").slice(0,32).toUpperCase();
   secret.fill(0);
   return {key,epoch};
@@ -25,13 +25,13 @@ const pair = () => generateKeyPairSync("ec",{namedCurve:"prime256v1"});
 function encryptForSession(key,epoch,plaintext,sequence=1) {
  const iv=randomBytes(12);
  const cipher=createCipheriv("aes-256-gcm",key,iv);
- cipher.setAAD(Buffer.from("NEST-LOCAL-V7-AEAD:NEST-LOCAL-V7:phone-A:phone-B:"+epoch+":seq:"+sequence));
+ cipher.setAAD(Buffer.from("NEST-LOCAL-V8-AEAD:NEST-LOCAL-V8:phone-A:phone-B:"+epoch+":seq:"+sequence));
  const ct=Buffer.concat([cipher.update(plaintext),cipher.final()]);
  return {iv,ct,tag:cipher.getAuthTag()};
 }
 function decryptForSession(key,epoch,packet,sequence=1) {
  const decipher=createDecipheriv("aes-256-gcm",key,packet.iv);
- decipher.setAAD(Buffer.from("NEST-LOCAL-V7-AEAD:NEST-LOCAL-V7:phone-A:phone-B:"+epoch+":seq:"+sequence));
+ decipher.setAAD(Buffer.from("NEST-LOCAL-V8-AEAD:NEST-LOCAL-V8:phone-A:phone-B:"+epoch+":seq:"+sequence));
  decipher.setAuthTag(packet.tag);
  return Buffer.concat([decipher.update(packet.ct),decipher.final()]);
 }
@@ -81,7 +81,7 @@ test("actual GitHub parser rejects malicious, oversized and inconsistent multipa
 });
 test("local transport is v4-only and release remains blocked",()=>{
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
- assert.match(java,/PROTOCOL_VERSION = 7/);
+ assert.match(java,/PROTOCOL_VERSION = 8/);
  assert.match(java,/trustedPrefs\.edit\(\)\.clear\(\)\.commit\(\)/);
  assert.match(java,/hello_floor\./);
  assert.match(java,/MAX_WORKSPACE_BYTES/);

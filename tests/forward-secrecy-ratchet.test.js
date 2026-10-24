@@ -9,9 +9,9 @@ const {createHmac,randomBytes,createCipheriv,createDecipheriv} = require("node:c
 const read = p => fs.readFileSync(path.resolve(__dirname,"..",p),"utf8");
 function mac(k,s){return createHmac("sha256",k).update(s).digest();}
 function init(shared,epoch,sender,receiver){
- return mac(shared,"NEST-LOCAL-V7-CHAIN:"+epoch+":"+sender+":"+receiver);
+ return mac(shared,"NEST-LOCAL-V8-CHAIN:"+epoch+":"+sender+":"+receiver);
 }
-function step(ck){return {message:mac(ck,"NEST-LOCAL-V7-MESSAGE"),next:mac(ck,"NEST-LOCAL-V7-NEXT")};}
+function step(ck){return {message:mac(ck,"NEST-LOCAL-V8-MESSAGE"),next:mac(ck,"NEST-LOCAL-V8-NEXT")};}
 function pair(epoch="A1B2C3"){
  const root=randomBytes(32);
  return {alice:{send:init(root,epoch,"A","B"),recv:init(root,epoch,"B","A"),ss:0,rs:0},bob:{send:init(root,epoch,"B","A"),recv:init(root,epoch,"A","B"),ss:0,rs:0}};
@@ -75,12 +75,12 @@ test("v6 refuses huge sequence jump without ratchet computation",()=>{
 });
 test("Java native local transport consumes message keys and erases past chains",()=>{
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
- assert.match(java,/PROTOCOL_VERSION = 7/);
+ assert.match(java,/PROTOCOL_VERSION = 8/);
  assert.doesNotMatch(java,/peer\.key/);
  assert.match(java,/Arrays\.fill\(root, \(byte\) 0\)/);
- assert.match(java,/NEST-LOCAL-V7-CHAIN:/);
- assert.match(java,/NEST-LOCAL-V7-MESSAGE/);
- assert.match(java,/NEST-LOCAL-V7-NEXT/);
+ assert.match(java,/NEST-LOCAL-V8-CHAIN:/);
+ assert.match(java,/NEST-LOCAL-V8-MESSAGE/);
+ assert.match(java,/NEST-LOCAL-V8-NEXT/);
  assert.match(java,/peer\.sendChain = step\.nextChain/);
  assert.match(java,/Arrays\.fill\(peer\.sendChain, \(byte\) 0\)/);
  assert.match(java,/peer\.receiveChain = candidate/);
