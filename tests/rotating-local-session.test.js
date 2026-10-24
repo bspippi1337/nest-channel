@@ -85,6 +85,10 @@ test("local transport is v4-only and release remains blocked",()=>{
  assert.match(java,/trustedPrefs\.edit\(\)\.clear\(\)\.commit\(\)/);
  assert.match(java,/hello_floor\./);
  assert.match(java,/MAX_WORKSPACE_BYTES/);
+ assert.match(java,/MAX_ACTIVE_ASSEMBLIES = 8/);
+ const js=read("github-sync.js");
+ assert.match(js,/MAX_PENDING_GROUPS = 8/);
+ assert.match(js,/MAX_PENDING_GROUP_BYTES = 2_500_000/);
  assert.match(java,/peer\.rememberAuthenticated\(messageId\)/);
  assert.match(read("SECURITY-READINESS.json"),/"release_blocked": true/);
 });
