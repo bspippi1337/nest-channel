@@ -481,7 +481,7 @@
   function transportSnapshot() {
     return {
       version: workspace.version, logicalCounter: workspace.logicalCounter,
-      updatedAt: workspace.updatedAt,
+      updatedAt: workspace.tasks.map(task => task.updatedAt || "").sort().at(-1) || "",
       tasks: workspace.tasks.map(task => ({...task, comments: []})),
       chat: []
     };
