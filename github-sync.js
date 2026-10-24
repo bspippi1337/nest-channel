@@ -50,8 +50,14 @@
   }
 
   function secretSave(key, value) {
-    try { if (nativeAvailable()) window.NativeHost.saveSecret(key, String(value)); }
-    catch {}
+    if (!nativeAvailable()) {
+      if (window.NESTSecurity?.isStrict()) throw new Error("Android sikker lagring mangler.");
+      return;
+    }
+    // A failure to protect a secret is fatal. Never silently continue a sync.
+    window.NativeHost.saveSecret(key, String(value));
+    if (window.NativeHost.loadSecret(key) !== String(value))
+      throw new Error("Android Keystore kunne ikke lagre hemmeligheten.");
   }
 
   function secretDelete(key) {
@@ -507,7 +513,6 @@
     repoName = parsed.repo;
     connectedNickname = nickname;
     saveSettings();
-    secretSave("channel_password", password);
     el.channelPassword.value = password;
     el.connectButton.disabled = true;
     setConnectionState("connecting", "Finner kryptert GitHub-kanal …");
@@ -519,6 +524,8 @@
         window.NESTSecurity.requirePrivateRepo(repoData);
       }
       await prepareRoom(channel, password);
+      // Validate inputs and private-repo policy before persisting a channel key.
+      secretSave("channel_password", password);
       issueNumber = await findOrCreateIssue();
       window.NEST_GITHUB_CONNECTED = true;
       pollFailures = 0;
@@ -533,9 +540,7 @@
       setConnectionState("online", bootstrapped ? "GitHub-synk aktiv · siste snapshot lastet" : "GitHub-synk aktiv · ny kanal");
       pollComments();
     } catch (error) {
-      window.NEST_GITHUB_CONNECTED = false;
-      el.connectButton.disabled = false;
-      el.disconnectButton.disabled = true;
+      disconnectGithub();
       setConnectionState("offline", `Kunne ikke koble til: ${error.message}`);
     }
   }

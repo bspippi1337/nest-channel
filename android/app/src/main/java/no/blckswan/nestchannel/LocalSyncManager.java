@@ -31,6 +31,7 @@ import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -63,7 +64,12 @@ final class LocalSyncManager {
 
     private static final int PORT = 42420;
     private static final String GROUP_ADDRESS = "239.42.42.42";
-    private static final int PROTOCOL_VERSION = 3;
+    private static final int PROTOCOL_VERSION = 4;
+    private static final long SESSION_ROTATE_MS = 15 * 60_000L;
+    private static final long MAX_SIGNED_HELLO_SKEW_MS = 90_000L;
+    private static final int MAX_FRAGMENT_COUNT = 128;
+    private static final int MAX_ACTIVE_ASSEMBLIES = 128;
+    private static final int MAX_WORKSPACE_BYTES = 2_000_000;
     private static final int MAX_PACKET_BYTES = 34_000;
     private static final long PEER_TIMEOUT_MS = 15_000L;
     private static final long ASSEMBLY_TIMEOUT_MS = 30_000L;
@@ -127,8 +133,7 @@ final class LocalSyncManager {
             return;
         }
         try {
-            sessionKeyPair = newEphemeralKeyPair();
-            sessionPublicBase64 = b64(sessionKeyPair.getPublic().getEncoded());
+            rotateLocalSession();
             WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
             if (wifiManager != null) {
                 multicastLock = wifiManager.createMulticastLock("nest-local-sync");
@@ -148,6 +153,8 @@ final class LocalSyncManager {
             receiveExecutor.execute(this::receiveLoop);
             scheduler.scheduleAtFixedRate(this::announce, 0, 3, TimeUnit.SECONDS);
             scheduler.scheduleAtFixedRate(this::cleanup, 3, 3, TimeUnit.SECONDS);
+            scheduler.scheduleAtFixedRate(this::rotateLocalSession, SESSION_ROTATE_MS,
+                    SESSION_ROTATE_MS, TimeUnit.MILLISECONDS);
             scheduler.scheduleAtFixedRate(() -> {
                 String workspace = lastWorkspace;
                 if (!workspace.isBlank()) sendWorkspaceNow(workspace);
@@ -158,6 +165,28 @@ final class LocalSyncManager {
         } catch (Exception error) {
             stop();
             listener.onError(messageFor(error));
+        }
+    }
+
+    // Each rotation replaces the ephemeral ECDH private key and erases access to
+    // previous per-peer traffic keys. Never persist session keys or old traffic keys.
+    // This offers SESSION separation, not complete forward secrecy for saved snapshots.
+    private synchronized void rotateLocalSession() {
+        try {
+            KeyPair fresh = newEphemeralKeyPair();
+            sessionKeyPair = fresh;
+            sessionPublicBase64 = b64(fresh.getPublic().getEncoded());
+            for (Peer peer : peers.values()) {
+                peer.key = null;
+                peer.epoch = "";
+                peer.clearReplay();
+            }
+            assemblies.clear();
+            if (running.get()) announce();
+        } catch (Exception error) {
+            // Fail closed: never continue to send under an expired traffic key.
+            for (Peer peer : peers.values()) { peer.key = null; peer.epoch = ""; }
+            if (running.get()) listener.onError("ECDH-nøkkelbytte mislyktes; lokal sending stoppet: " + messageFor(error));
         }
     }
 
@@ -314,12 +343,13 @@ final class LocalSyncManager {
     private void sendHelloTo(InetAddress destination, boolean reply) throws Exception {
         if (sessionKeyPair == null || sessionPublicBase64.isBlank()) return;
         String nonce = randomToken(18);
-        String canonical = helloCanonical(nodeId, identityPublicBase64, sessionPublicBase64, nonce);
+        long sentAt = System.currentTimeMillis();
+        String canonical = helloCanonical(nodeId, identityPublicBase64, sessionPublicBase64, nonce, sentAt);
         JSONObject hello = new JSONObject();
         hello.put("v", PROTOCOL_VERSION); hello.put("type", "hello"); hello.put("node", nodeId);
         hello.put("name", deviceLabel); hello.put("identity", identityPublicBase64);
         hello.put("session", sessionPublicBase64); hello.put("nonce", nonce); hello.put("sig", sign(canonical));
-        hello.put("reply", reply); hello.put("sentAt", System.currentTimeMillis());
+        hello.put("reply", reply); hello.put("sentAt", sentAt);
         sendPacket(hello.toString(), destination);
     }
 
@@ -357,18 +387,24 @@ final class LocalSyncManager {
 
     private void sendWorkspaceToPeer(String json, Peer peer) throws Exception {
         byte[] compressed = gzip(json);
+        if (compressed.length > MAX_WORKSPACE_BYTES) throw new SecurityException("Arbeidsdata overstiger sikker pakkestørrelse.");
+        final SecretKey trafficKey = peer.key;
+        final String epoch = peer.epoch;
+        if (trafficKey == null || epoch.isBlank()) return;
         byte[] iv = new byte[12]; RANDOM.nextBytes(iv);
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, peer.key, new GCMParameterSpec(128, iv));
-        cipher.updateAAD(aadFor(peer.nodeId));
+        cipher.init(Cipher.ENCRYPT_MODE, trafficKey, new GCMParameterSpec(128, iv));
+        cipher.updateAAD(aadForEpoch(peer.nodeId, epoch));
         String encoded = b64(cipher.doFinal(compressed));
         int total = Math.max(1, (int) Math.ceil(encoded.length() / (double) MAX_PACKET_BYTES));
+        if (total > MAX_FRAGMENT_COUNT) throw new SecurityException("For mange krypterte fragmenter.");
         String messageId = UUID.randomUUID().toString();
         for (int index = 0; index < total && running.get(); index++) {
             int start = index * MAX_PACKET_BYTES, end = Math.min(encoded.length(), start + MAX_PACKET_BYTES);
             JSONObject chunk = new JSONObject();
             chunk.put("v", PROTOCOL_VERSION); chunk.put("type", "secure_workspace"); chunk.put("node", nodeId);
             chunk.put("id", messageId); chunk.put("part", index + 1); chunk.put("total", total);
+            chunk.put("epoch", epoch);
             chunk.put("iv", b64(iv)); chunk.put("data", encoded.substring(start, end));
             sendPacket(chunk.toString(), peer.address);
         }
@@ -412,21 +448,34 @@ final class LocalSyncManager {
             if ("hello".equals(type)) { receiveHello(message, source); return; }
             Peer peer = peers.get(sender);
             if (peer == null || !peer.trusted || peer.key == null) return;
-            peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime();
             if (!"secure_workspace".equals(type)) return;
+            final String epoch = message.optString("epoch", "");
+            if (epoch.isBlank() || !epoch.equals(peer.epoch)) return;
+            peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime();
             String messageId = message.optString("id", "");
             int part = message.optInt("part", 0), total = message.optInt("total", 0);
             String iv = message.optString("iv", ""), data = message.optString("data", "");
-            if (messageId.isBlank() || part < 1 || total < 1 || part > total || iv.isBlank() || data.isEmpty()) return;
-            String key = sender + ":" + messageId;
+            if (!messageId.matches("[0-9a-fA-F-]{36}") || part < 1 || total < 1
+                    || total > MAX_FRAGMENT_COUNT || part > total || iv.isBlank()
+                    || data.isEmpty() || data.length() > MAX_PACKET_BYTES) return;
+            if (peer.alreadyAccepted(messageId)) return;
+            String key = sender + ":" + epoch + ":" + messageId;
+            if (!assemblies.containsKey(key) && assemblies.size() >= MAX_ACTIVE_ASSEMBLIES) return;
             Assembly assembly = assemblies.computeIfAbsent(key, ignored -> new Assembly(total, iv));
             if (assembly.total != total || !assembly.iv.equals(iv)) { assemblies.remove(key); return; }
             assembly.add(part - 1, data); if (!assembly.complete()) return;
             assemblies.remove(key);
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, peer.key, new GCMParameterSpec(128, Base64.decode(assembly.iv, Base64.NO_WRAP)));
-            cipher.updateAAD(aadFor(sender));
-            listener.onWorkspace(gunzip(cipher.doFinal(Base64.decode(assembly.join(), Base64.NO_WRAP))));
+            byte[] nonce = Base64.decode(assembly.iv, Base64.NO_WRAP);
+            if (nonce.length != 12) return;
+            cipher.init(Cipher.DECRYPT_MODE, peer.key, new GCMParameterSpec(128, nonce));
+            cipher.updateAAD(aadForEpoch(sender, epoch));
+            final byte[] plaintext = cipher.doFinal(Base64.decode(assembly.join(), Base64.NO_WRAP));
+            final String workspace = gunzip(plaintext);
+            // Re-authenticated ciphertext cannot be processed more than once in
+            // this epoch, including when a captured UDP packet is replayed.
+            if (!peer.rememberAuthenticated(messageId)) return;
+            listener.onWorkspace(workspace);
             notifyStatus("active", "AES-256-GCM · mottok verifisert oppdatering");
         } catch (Exception ignored) {}
     }
@@ -435,6 +484,9 @@ final class LocalSyncManager {
         String sender = message.optString("node", ""), identity = message.optString("identity", ""),
                 session = message.optString("session", ""), nonce = message.optString("nonce", ""), sig = message.optString("sig", "");
         if (identity.isBlank() || session.isBlank() || nonce.isBlank() || sig.isBlank()) return;
+        long sentAt = message.optLong("sentAt", 0L);
+        long clockDistance = Math.abs(System.currentTimeMillis() - sentAt);
+        if (sentAt <= 0L || clockDistance > MAX_SIGNED_HELLO_SKEW_MS) return;
         String trustedIdentity = trustedIdentity(sender);
         if (trustedIdentity.isBlank()) return;
         if (!constantTimeEquals(trustedIdentity, identity)) {
@@ -443,10 +495,22 @@ final class LocalSyncManager {
             peers.remove(sender); return;
         }
         PublicKey identityKey = decodePublicKey(identity);
-        if (!verify(identityKey, helloCanonical(sender, identity, session, nonce), sig)) return;
+        if (!verify(identityKey, helloCanonical(sender, identity, session, nonce, sentAt), sig)) return;
         Peer peer = peers.computeIfAbsent(sender, ignored -> new Peer(sender));
+        // A signed older HELLO may not roll a peer back to an obsolete ECDH key.
+        if (sentAt <= peer.lastSignedHello) return;
+        final String epoch = epochFor(sender, session);
+        final boolean changed = !epoch.equals(peer.epoch);
+        if (changed) {
+            SecretKey nextKey = derivePeerKey(sender, session);
+            peer.key = nextKey;
+            peer.epoch = epoch;
+            peer.clearReplay();
+            assemblies.keySet().removeIf(k -> k.startsWith(sender + ":"));
+        }
+        peer.lastSignedHello = sentAt;
         peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime(); peer.name = message.optString("name", "NEST-telefon");
-        peer.key = derivePeerKey(sender, session); peer.trusted = true; manualTargets.add(source);
+        peer.trusted = true; manualTargets.add(source);
         if (!message.optBoolean("reply", false)) sendHelloTo(source, true);
         notifyStatus("active", "Verifisert peer: " + peer.name);
         String workspace = lastWorkspace;
@@ -469,7 +533,9 @@ final class LocalSyncManager {
         trustPeer(requesterNode, requesterIdentity, message.optString("name", "NEST-telefon"));
         Peer peer = peers.computeIfAbsent(requesterNode, ignored -> new Peer(requesterNode));
         peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime(); peer.name = message.optString("name", "NEST-telefon");
-        peer.key = derivePeerKey(requesterNode, requesterSession); peer.trusted = true; manualTargets.add(source);
+        peer.key = derivePeerKey(requesterNode, requesterSession);
+        peer.epoch = epochFor(requesterNode, requesterSession);
+        peer.clearReplay(); peer.trusted = true; manualTargets.add(source);
         sendPairAccept(source, requesterNode, nonce); activeOffer = null;
         listener.onPairingStatus("paired", trustedPeerCount(), "Paret med " + peer.name);
         notifyStatus("active", "Verifisert peer: " + peer.name);
@@ -495,7 +561,9 @@ final class LocalSyncManager {
         trustPeer(sender, identity, message.optString("name", pending.name));
         Peer peer = peers.computeIfAbsent(sender, ignored -> new Peer(sender));
         peer.address = source; peer.lastSeen = SystemClock.elapsedRealtime(); peer.name = message.optString("name", pending.name);
-        peer.key = derivePeerKey(sender, session); peer.trusted = true; manualTargets.add(source); pendingPairing = null;
+        peer.key = derivePeerKey(sender, session);
+        peer.epoch = epochFor(sender, session); peer.clearReplay();
+        peer.trusted = true; manualTargets.add(source); pendingPairing = null;
         listener.onPairingStatus("paired", trustedPeerCount(), "Paret med " + peer.name);
         notifyStatus("active", "Verifisert peer: " + peer.name);
         if (!lastWorkspace.isBlank()) sendWorkspaceToPeer(lastWorkspace, peer);
@@ -518,20 +586,48 @@ final class LocalSyncManager {
         generator.initialize(new ECGenParameterSpec("secp256r1"), RANDOM); return generator.generateKeyPair();
     }
 
-    private SecretKey derivePeerKey(String peerNodeId, String encodedSessionKey) throws Exception {
+    private synchronized SecretKey derivePeerKey(String peerNodeId, String encodedSessionKey) throws Exception {
         KeyPair activeSession = sessionKeyPair;
         if (activeSession == null) throw new IllegalStateException("Mangler aktiv ECDH-sesjon");
         KeyAgreement agreement = KeyAgreement.getInstance("ECDH"); agreement.init(activeSession.getPrivate());
         agreement.doPhase(decodePublicKey(encodedSessionKey), true);
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        digest.update("NEST-LOCAL-V3-KDF".getBytes(StandardCharsets.UTF_8)); digest.update(agreement.generateSecret()); digest.update(aadFor(peerNodeId));
-        return new SecretKeySpec(digest.digest(), "AES");
+        byte[] shared = agreement.generateSecret();
+        try {
+            // Session transcript includes both short-lived ECDH public keys in
+            // deterministic node order; changing EITHER key creates a new epoch.
+            byte[] transcript = sessionTranscript(peerNodeId, encodedSessionKey);
+            Mac extract = Mac.getInstance("HmacSHA256");
+            extract.init(new SecretKeySpec(MessageDigest.getInstance("SHA-256").digest(transcript), "HmacSHA256"));
+            byte[] prk = extract.doFinal(shared);
+            Mac expand = Mac.getInstance("HmacSHA256");
+            expand.init(new SecretKeySpec(prk, "HmacSHA256"));
+            expand.update("NEST-LOCAL-V4-TRAFFIC".getBytes(StandardCharsets.UTF_8));
+            expand.update((byte) 1);
+            byte[] keyBytes = expand.doFinal();
+            Arrays.fill(prk, (byte) 0);
+            try { return new SecretKeySpec(keyBytes, "AES"); }
+            finally { Arrays.fill(keyBytes, (byte) 0); }
+        } finally { Arrays.fill(shared, (byte) 0); }
+    }
+
+    private byte[] sessionTranscript(String peerNodeId, String peerSession) {
+        boolean first = nodeId.compareTo(peerNodeId) <= 0;
+        String context = first ? nodeId + ":" + sessionPublicBase64 + ":" + peerNodeId + ":" + peerSession
+                : peerNodeId + ":" + peerSession + ":" + nodeId + ":" + sessionPublicBase64;
+        return ("NEST-LOCAL-V4-TRANSCRIPT:" + context).getBytes(StandardCharsets.UTF_8);
+    }
+    private String epochFor(String peerNodeId, String peerSession) throws Exception {
+        return fingerprint(sessionTranscript(peerNodeId, peerSession)).substring(0, 32);
+    }
+    private byte[] aadForEpoch(String peerNodeId, String epoch) {
+        return ("NEST-LOCAL-V4-AEAD:" + new String(aadFor(peerNodeId), StandardCharsets.UTF_8) + ":" + epoch)
+                .getBytes(StandardCharsets.UTF_8);
     }
 
     private byte[] aadFor(String peerNodeId) {
         String first = nodeId.compareTo(peerNodeId) <= 0 ? nodeId : peerNodeId;
         String second = nodeId.compareTo(peerNodeId) <= 0 ? peerNodeId : nodeId;
-        return ("NEST-LOCAL-V3:" + first + ":" + second).getBytes(StandardCharsets.UTF_8);
+        return ("NEST-LOCAL-V4:" + first + ":" + second).getBytes(StandardCharsets.UTF_8);
     }
 
     private String sign(String canonical) throws Exception {
@@ -550,14 +646,14 @@ final class LocalSyncManager {
         return b64Url(mac.doFinal(canonical.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private static String helloCanonical(String node, String identity, String session, String nonce) {
-        return "NEST-V3|hello|" + node + "|" + identity + "|" + session + "|" + nonce;
+    private static String helloCanonical(String node, String identity, String session, String nonce, long sentAt) {
+        return "NEST-V4|hello|" + node + "|" + identity + "|" + session + "|" + nonce + "|" + sentAt;
     }
     private static String pairRequestCanonical(String host, String requester, String identity, String session, String nonce) {
-        return "NEST-V3|pair-request|" + host + "|" + requester + "|" + identity + "|" + session + "|" + nonce;
+        return "NEST-V4|pair-request|" + host + "|" + requester + "|" + identity + "|" + session + "|" + nonce;
     }
     private static String pairAcceptCanonical(String requester, String host, String identity, String session, String reqNonce, String hostNonce) {
-        return "NEST-V3|pair-accept|" + requester + "|" + host + "|" + identity + "|" + session + "|" + reqNonce + "|" + hostNonce;
+        return "NEST-V4|pair-accept|" + requester + "|" + host + "|" + identity + "|" + session + "|" + reqNonce + "|" + hostNonce;
     }
 
     private String trustedIdentity(String peerNodeId) { return trustedPrefs.getString("peer." + peerNodeId, ""); }
@@ -603,7 +699,14 @@ final class LocalSyncManager {
     private static String gunzip(byte[] compressed) throws Exception {
         ByteArrayOutputStream result = new ByteArrayOutputStream();
         try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
-            byte[] buffer = new byte[8192]; int read; while ((read = gzip.read(buffer)) >= 0) if (read > 0) result.write(buffer, 0, read);
+            byte[] buffer = new byte[8192]; int read;
+            while ((read = gzip.read(buffer)) >= 0) {
+                if (read > 0) {
+                    if (result.size() + read > MAX_WORKSPACE_BYTES)
+                        throw new SecurityException("Dekryptert arbeidsdata overskrider trygg grense.");
+                    result.write(buffer, 0, read);
+                }
+            }
         }
         return result.toString(StandardCharsets.UTF_8);
     }
@@ -628,6 +731,16 @@ final class LocalSyncManager {
     private static final class Peer {
         final String nodeId; volatile InetAddress address; volatile long lastSeen; volatile String name = "NEST-telefon";
         volatile SecretKey key; volatile boolean trusted;
+        volatile String epoch = "";
+        volatile long lastSignedHello;
+        final LinkedHashSet<String> acceptedIds = new LinkedHashSet<>();
+        synchronized void clearReplay() { acceptedIds.clear(); }
+        synchronized boolean alreadyAccepted(String id) { return acceptedIds.contains(id); }
+        synchronized boolean rememberAuthenticated(String id) {
+            if (!acceptedIds.add(id)) return false;
+            if (acceptedIds.size() > 1024) acceptedIds.remove(acceptedIds.iterator().next());
+            return true;
+        }
         Peer(String nodeId) { this.nodeId = nodeId; }
     }
     private static final class PairingOffer {

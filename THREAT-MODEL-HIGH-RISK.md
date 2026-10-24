@@ -35,3 +35,11 @@ Strict mode is stored as a native Android preference and defaults to enabled. We
 
 ## Fail-closed release gate
 The signing workflow now checks `SECURITY-READINESS.json` and refuses to use signing secrets while any mandatory independent acceptance item remains unverified. Passing CI compilation is never treated as proof of forward secrecy, against active compromise, or of physical two-phone behavior. The gate validates evidence metadata; independent humans must validate the underlying evidence. No automatic release or merge is authorized while the gate is blocked.
+
+## Local session key rotation prototype (v4 protocol)
+- Android local P2P now regenerates an ephemeral ECDH P-256 private key every 15 minutes and discards active per-peer traffic keys. Both devices establish a fresh authenticated session on signed HELLO; the old key is not persisted.
+- HELLO signatures now include a timestamp; accept only a ±90-second skew and strictly increasing per-peer signed timestamps. Session transcript (ordered node IDs + ephemeral public keys) is bound through HKDF-HMAC-SHA256 to the traffic key and through AEAD AAD to each ciphertext.
+- Ciphertext frames carry an explicit session epoch. Frames from the wrong epoch and duplicate authenticated message IDs are dropped. Fragment and decompression limits reduce memory and zip-bomb exposure.
+- v4 is incompatible with v3 local transport; **both test phones must run the new build**. No automatic migration or rekey/revocation of stored GitHub snapshots is implied.
+- IMPORTANT: this provides forward isolation between *ephemeral local transport sessions*, assuming uncompromised old ephemeral keys. It does NOT constitute Signal Double Ratchet, MLS, full forward secrecy for stored workspace history, group membership secrecy or post-compromise recovery. The workspace contains previously received plaintext, and GitHub snapshots remain encrypted under the static channel key.
+- Signed HELLO freshness requires reasonably synchronized clocks; devices with >90 seconds skew will not establish a local session. Persistent rollback/anti-replay across restarts, counter-based per-message ratchets and physical two-phone testing are outstanding.
