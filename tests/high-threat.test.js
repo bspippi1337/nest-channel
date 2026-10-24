@@ -132,7 +132,7 @@ test("strict profile refuses all legacy whole-workspace sync transports until re
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
  assert.match(repo,/requireForwardSecretTransport\?\.\("github_workspace"\)/);
  assert.match(wizard,/requireForwardSecretTransport\?\.\("legacy_wizard"\)/);
- assert.match(ui,/requireForwardSecretTransport\?\.\("local_workspace"\)/);
+ assert.match(ui,/if \(!autoLocalStarted \|\| window\.NESTSecurity\?\.isStrict\?\.\(\)\) return/);
  assert.match(java,/if \(isHighThreatStrict\(\)\) throw new SecurityException\("Ingen forward secrecy/);
  assert.match(read("SECURITY-READINESS.json"),/"release_blocked": true/);
 });
