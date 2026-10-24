@@ -13,7 +13,8 @@
   const REQUEST_TIMEOUT_MS = 20000;
   const SNAPSHOT_PAGE_LIMIT = 10;
   const MAX_ENVELOPE_PARTS = 128;
-  const MAX_PENDING_GROUPS = 96;
+  const MAX_PENDING_GROUPS = 8;
+  const MAX_PENDING_GROUP_BYTES = 2_500_000;
   const MAX_SEEN_COMMENTS = 8192;
 
   const ui = {
@@ -377,15 +378,17 @@
       chunkGroups.clear();
       return;
     }
-    const group = chunkGroups.get(chunk.id) || { total: Number(chunk.total) || 1, iv: chunk.iv, parts: [], received: 0 };
+    const group = chunkGroups.get(chunk.id) || { total: Number(chunk.total) || 1, iv: chunk.iv, parts: [], received: 0, bytes: 0 };
     const index = Math.max(0, Number(chunk.part || 1) - 1);
     if (group.total !== (Number(chunk.total) || 1) || group.iv !== chunk.iv) {
       chunkGroups.delete(chunk.id);
       return;
     }
     if (group.parts[index] === undefined) {
+      if (group.bytes + chunk.data.length > MAX_PENDING_GROUP_BYTES) { chunkGroups.delete(chunk.id); return; }
       group.parts[index] = chunk.data;
       group.received++;
+      group.bytes += chunk.data.length;
     }
     chunkGroups.set(chunk.id, group);
     if (group.received < group.total) return;
