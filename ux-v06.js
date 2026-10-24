@@ -14,7 +14,8 @@
   const connectCard = document.querySelector(".connect-card");
 
   let autoLocalSendTimer = null;
-  const sentLocalEventIds = new Set();
+  let localPeers = 0;
+  let localRetryTimer = null;
   let autoLocalStarted = false;
   let activeMobilePane = "tasks";
   let unreadChat = 0;
@@ -277,10 +278,9 @@
           tasks: (data.tasks || []).map(task => ({...task, comments: []}))
         };
         window.NativeLocal?.sendWorkspace?.(JSON.stringify(safeSnapshot));
-        for (const event of data.outbox || []) {
-          if (sentLocalEventIds.has(event.id)) continue;
-          window.NativeLocal?.sendWorkspace?.(JSON.stringify({kind: "event", event}));
-          sentLocalEventIds.add(event.id);
+        if (localPeers > 0) {
+          for (const event of data.outbox || [])
+            window.NativeLocal?.sendWorkspace?.(JSON.stringify({kind: "event", event}));
         }
       } catch {}
     }, delay);
@@ -296,18 +296,23 @@
       return;
     }
 
-    let peers = 0;
     window.NestLocalSync = {
       onStatus(state, count) {
-        peers = Number(count) || 0;
+        const previous = localPeers;
+        localPeers = Number(count) || 0;
         const summary = byId("syncSummaryDetail");
-        if (summary && peers > 0) summary.textContent = `${peers + 1} telefoner lokalt · kryptert`;
+        if (summary && localPeers > 0) summary.textContent = `${localPeers + 1} telefoner lokalt · kryptert`;
+        if (localPeers > 0 && previous === 0) autoLocalSend(100);
       },
       onWorkspace(raw) {
         try {
           const data = JSON.parse(String(raw));
-          if (data.kind === "event") window.NESTTransport?.applyEvent(data.event);
-          else mergeWorkspace(data);
+          if (data.kind === "event") {
+            if (window.NESTTransport?.applyEvent(data.event))
+              window.NativeLocal?.sendWorkspace?.(JSON.stringify({kind: "ack", id: data.event.id}));
+          } else if (data.kind === "ack") {
+            window.NESTTransport?.acknowledgeLocalEvent(data.id);
+          } else mergeWorkspace(data);
           autoLocalSend(650);
         } catch {}
       },
@@ -332,13 +337,16 @@
       autoLocalSend(500);
     } catch {
       autoLocalStarted = false;
-      sentLocalEventIds.clear();
+      localPeers = 0;
       window.NEST_LOCAL_CONNECTED = false;
     }
 
     window.addEventListener("nest:workspace-changed", () => autoLocalSend());
+    localRetryTimer = setInterval(() => {
+      if (autoLocalStarted && localPeers > 0) autoLocalSend(250);
+    }, 15_000);
     window.addEventListener("beforeunload", () => {
-      sentLocalEventIds.clear();
+      if (localRetryTimer) clearInterval(localRetryTimer);
       try { window.NativeLocal?.stop?.(); } catch {}
     });
   }
