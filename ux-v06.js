@@ -261,7 +261,7 @@
   }
 
   function autoLocalSend(delay = AUTO_LOCAL_SEND_MS) {
-    if (!autoLocalStarted) return;
+    if (!autoLocalStarted || window.NESTSecurity?.isStrict?.()) return;
     clearTimeout(autoLocalSendTimer);
     autoLocalSendTimer = setTimeout(() => {
       try {
@@ -273,14 +273,11 @@
   }
 
   function setupAutoLocalTransport() {
-    if (getMode() !== "auto" || !window.NativeLocal?.start) return;
-    try { window.NESTSecurity?.requireForwardSecretTransport?.("local_workspace"); }
-    catch (error) {
-      const summary = byId("syncSummaryDetail");
-      if (summary) summary.textContent = String(error.message || error);
-      window.NEST_LOCAL_CONNECTED = false;
-      return;
-    }
+    if (!window.NativeLocal?.start) return;
+    if (!["auto", "local"].includes(getMode()) && !window.NESTSecurity?.isStrict?.()) return;
+    // Native chat is a single-message transport. Legacy workspace sync stays
+    // disabled under strict policy, independently enforced by Android.
+
 
     let peers = 0;
     window.NestLocalSync = {
@@ -290,10 +287,14 @@
         if (summary && peers > 0) summary.textContent = `${peers + 1} telefoner lokalt · kryptert`;
       },
       onWorkspace(raw) {
+        if (window.NESTSecurity?.isStrict?.()) return;
         try {
           mergeWorkspace(JSON.parse(String(raw)));
           autoLocalSend(650);
         } catch {}
+      },
+      onChat(raw) {
+        window.NEST_ReceiveLocalChat?.(raw);
       },
       onError(message) {
         const summary = byId("syncSummaryDetail");
@@ -312,7 +313,8 @@
       const chatButton = byId("chatForm")?.querySelector("button");
       if (chatButton) chatButton.disabled = false;
       if (byId("channelHeading") && !window.NEST_GITHUB_CONNECTED) byId("channelHeading").textContent = "Auto · lokalt";
-      if (byId("encryptedBadge") && !window.NEST_GITHUB_CONNECTED) byId("encryptedBadge").textContent = "🔒 AUTO";
+      if (byId("encryptedBadge") && !window.NEST_GITHUB_CONNECTED)
+        byId("encryptedBadge").textContent = "🔒 P2P-melding";
       autoLocalSend(500);
     } catch {
       autoLocalStarted = false;

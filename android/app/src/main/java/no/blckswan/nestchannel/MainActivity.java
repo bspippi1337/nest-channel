@@ -136,6 +136,11 @@ public final class MainActivity extends Activity {
             }
 
             @Override
+            public void onChat(String json) {
+                callJavaScript("window.NestLocalSync&&window.NestLocalSync.onChat(" + JSONObject.quote(json) + ")");
+            }
+
+            @Override
             public void onPairingStatus(String state, int trustedPeers, String detail) {
                 callJavaScript("window.NestLocalPairing&&window.NestLocalPairing.onStatus("
                         + JSONObject.quote(state) + "," + trustedPeers + "," + JSONObject.quote(detail) + ")");
@@ -269,13 +274,15 @@ public final class MainActivity extends Activity {
                 final boolean wasStrict = isHighThreatStrict();
                 final String message = wasStrict
                         ? "Standard beta aktiverer gammel GitHub- og lokal arbeidsflate-synk, som ikke har forward secrecy. Bruk bare ufarlige testdata. WebRTC kan eksponere IP. Deaktivere høyrisikoprofil?"
-                        : "Høyrisikoprofil sperrer gammel GitHub-/lokalsynk og live-radio fram til meldingsprotokollen er sikkerhetsgjennomgått. Ny lokal nøkkelratchet er under testing. Aktivere streng profil?";
+                        : "Høyrisikoprofil sperrer historiske synk-snapshots og live-radio. Nye chatmeldinger blir kun beholdt i minnet under økten og lagres ikke i arbeidsflatehistorikken. Eldre lokale chatter skjules og overskrives ved neste lagring. Aktivere streng profil?";
                 new AlertDialog.Builder(MainActivity.this)
                         .setTitle("NEST sikkerhetsprofil")
                         .setMessage(message)
                         .setNegativeButton("Avbryt", (d, w) -> {})
                         .setPositiveButton(wasStrict ? "Bekreft nedgradering" : "Aktiver streng profil", (d, w) -> {
                             if (!modePreferences.edit().putBoolean(THREAT_PROFILE_KEY, !wasStrict).commit()) return;
+                            // Tear down and erase all queued legacy snapshots on profile changes.
+                            if (localSyncManager != null) localSyncManager.stop();
                             // Mute any active PTT stream before reloading the WebView policy.
                             webView.evaluateJavascript("window.NestPTT091&&window.NestPTT091.stop&&window.NestPTT091.stop()", result -> webView.reload());
                         })
@@ -298,6 +305,10 @@ public final class MainActivity extends Activity {
         @JavascriptInterface
         public String loadSecret(String key) {
             if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
+            // Strict chat is native-only. Neither legacy shared-channel passwords
+            // nor long-lived GitHub bearer tokens may cross into WebView JS.
+            if (isHighThreatStrict() &&
+                    ("github_token".equals(key) || "channel_password".equals(key))) return "";
             if ("github_token".equals(key) && "local".equals(modePreferences.getString("mode", "auto"))) return "";
             return secureStore.get(key);
         }
@@ -424,13 +435,18 @@ public final class MainActivity extends Activity {
 
     private final class LocalBridge {
         @JavascriptInterface public void start() {
-            if (isHighThreatStrict()) throw new SecurityException("Historiske snapshots er sperret i høyrisikoprofil.");
+            // Authoritative native policy: never receive or emit old snapshots
+            // when strict profile is enabled, even if WebView JS misbehaves.
+            localSyncManager.setLegacyWorkspaceAllowed(!isHighThreatStrict());
             localSyncManager.start();
         }
         @JavascriptInterface public void stop() { localSyncManager.stop(); }
         @JavascriptInterface public void sendWorkspace(String json) {
             if (isHighThreatStrict()) throw new SecurityException("Ingen forward secrecy for gamle arbeidsflatesnapshots.");
             localSyncManager.sendWorkspace(json);
+        }
+        @JavascriptInterface public int sendChat(String json) {
+            return localSyncManager.sendChat(json);
         }
         @JavascriptInterface public void addPeer(String host) { localSyncManager.addManualPeer(host); }
         @JavascriptInterface public String getLocalAddress() { return localSyncManager.localAddress(); }
