@@ -72,6 +72,7 @@ public final class MainActivity extends Activity {
 
     private WebView webView;
     private SecureStore secureStore;
+    private GithubOneTimeFS githubFS;
     private SharedPreferences modePreferences;
     private LocalSyncManager localSyncManager;
     private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
@@ -95,6 +96,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(7, 16, 12));
         getWindow().setNavigationBarColor(Color.rgb(7, 16, 12));
         secureStore = new SecureStore(this);
+        githubFS = new GithubOneTimeFS(secureStore);
         modePreferences = getSharedPreferences(MODE_PREFERENCES, MODE_PRIVATE);
 
         // Android 15/16 may lay out an edge-to-edge WebView beneath system bars.
@@ -198,6 +200,7 @@ public final class MainActivity extends Activity {
 
         webView.addJavascriptInterface(new NativeBridge(), "NativeHost");
         webView.addJavascriptInterface(new LocalBridge(), "NativeLocal");
+        webView.addJavascriptInterface(new GithubFSBridge(), "NativeFS");
 
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -419,6 +422,22 @@ public final class MainActivity extends Activity {
                     callJavaScript("window.NestGitHubAuth&&window.NestGitHubAuth.onDeviceToken(" + JSONObject.quote(body) + ")");
                 } catch (Exception error) { reportNativeError(error); }
             });
+        }
+    }
+
+    private final class GithubFSBridge {
+        @JavascriptInterface public String fingerprint() { return githubFS.fingerprint(); }
+        @JavascriptInterface public String publicBundle(String room) { return githubFS.publicBundle(room); }
+        @JavascriptInterface public String inspectBundle(String room,String bundle) { return githubFS.inspectBundle(room,bundle); }
+        @JavascriptInterface public String pinnedFingerprint(String room) { return githubFS.pinnedFingerprint(room); }
+        @JavascriptInterface public void pinVerified(String room,String bundle,String checkedSuffix) {
+            githubFS.pinVerified(room,bundle,checkedSuffix);
+        }
+        @JavascriptInterface public String encrypt(String room,String plaintext,String peerBundle) {
+            return githubFS.encrypt(room,plaintext,peerBundle);
+        }
+        @JavascriptInterface public String decrypt(String room,String envelope) {
+            return githubFS.decrypt(room,envelope);
         }
     }
 

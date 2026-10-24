@@ -4,6 +4,7 @@
   const API = "https://api.github.com";
   const API_VERSION = "2022-11-28";
   const COMMENT_MARKER = "<!-- NEST-E2EE-V1 -->";
+  const FS_MARKER = "<!-- NEST-GH-FS1 -->";
   const CLIENT_ID_KEY = "nest.github.client-id.v1";
   const ISSUE_KEY_PREFIX = "nest.github.issue.v1:";
   const MAX_CHUNK = 44000;
@@ -43,6 +44,14 @@
   let syncFailures = 0;
   const seenCommentIds = new Set();
   const chunkGroups = new Map();
+  let fsPeerBundle = "";
+  let fsPeerFingerprint = "";
+  let fsMode = false;
+  let fsLastBundle = "";
+  const fsSeen = new Set();
+  let fsPanel = null;
+  let fsPairButton = null;
+
 
   function nativeAvailable() {
     return typeof window.NativeHost === "object";
@@ -302,7 +311,7 @@
     return { owner, repo };
   }
 
-  function roomMarker() { return `<!-- NEST-ROOM:${roomId} -->`; }
+  function roomMarker() { return fsMode ? `<!-- NEST-FS1-ROOM:${roomId} -->` : `<!-- NEST-ROOM:${roomId} -->`; }
 
   async function findOrCreateIssue() {
     const cacheKey = `${ISSUE_KEY_PREFIX}${repoOwner}/${repoName}:${roomId}`;
@@ -326,6 +335,171 @@
     });
     localStorage.setItem(cacheKey, String(created.number));
     return created.number;
+  }
+
+
+  // Independent experimental FS1 messaging path. GitHub is an untrusted mailbox.
+  // The native bridge owns identity signing and consumed P-256 one-time private keys.
+  function fsNative() {
+    if (!nativeAvailable() || !window.NativeFS ||
+        typeof window.NativeFS.publicBundle !== "function")
+      throw new Error("Denne Android-APK-en mangler NEST GitHub FS-nøkkelmodul.");
+    return window.NativeFS;
+  }
+  function fsPath() {
+    return "/repos/" + encodeURIComponent(repoOwner) + "/" + encodeURIComponent(repoName)
+      + "/issues/" + issueNumber + "/comments";
+  }
+  async function fsPost(envelope) {
+    if(window.NESTSecurity?.isStrict?.()) {
+      const repoData=await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
+      window.NESTSecurity.requirePrivateRepo(repoData);
+    }
+    const result=await api(fsPath(),{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({body:FS_MARKER+"\n"+JSON.stringify(envelope)})});
+    if (!Number.isSafeInteger(result?.id) || result.id<=0)
+      throw new Error("GitHub bekreftet ikke kryptert melding");
+    return result.id;
+  }
+  function fsPanelUi() {
+    if (!fsPanel) {
+      fsPanel=document.createElement("section");
+      fsPanel.className="nest-fs-identity-panel";
+      fsPanel.style.cssText="padding:12px;margin:10px 0;background:#102b22;border:1px solid #6c9484;border-radius:10px;min-width:0";
+      const heading=document.createElement("strong");
+      heading.textContent="GitHub · verifiserte engangsnøkler";
+      const mine=document.createElement("p");
+      mine.style.cssText="font-size:11px;line-height:1.5;overflow-wrap:anywhere";
+      mine.textContent="Din kode: "+fsNative().fingerprint();
+      const status=document.createElement("p");
+      status.className="nest-fs-peer-status";
+      status.style.cssText="font-size:12px;line-height:1.4";
+      fsPairButton=document.createElement("button");
+      fsPairButton.type="button";
+      fsPairButton.textContent="Verifiser den andre telefonen";
+      fsPairButton.addEventListener("click",()=>{
+        if (!fsPeerBundle) return;
+        try{
+          const fp=fsNative().inspectBundle(roomId,fsPeerBundle);
+          const suffix=window.prompt("Sammenlign koden med den som vises på den ANDRE telefonen. Skriv de siste 12 tegnene i dens kode:\n"+fp);
+          if (!suffix) return;
+          fsNative().pinVerified(roomId,fsPeerBundle,suffix);
+          fsPeerFingerprint=fp;
+          fsStatus();
+          queuePublish();
+        }catch(e){window.alert("Verifisering feilet: "+(e.message||e));}
+      });
+      fsPanel.append(heading,mine,status,fsPairButton);
+      (document.querySelector(".connect-card")||el.connectButton.parentElement).append(fsPanel);
+    }
+    fsStatus();
+  }
+  function fsStatus(){
+    if (!fsPanel) return;
+    const pinned=fsNative().pinnedFingerprint(roomId);
+    const label=fsPanel.querySelector(".nest-fs-peer-status");
+    const candidate=fsPeerFingerprint ? " · mulig mottaker "+fsPeerFingerprint.slice(-12) : "";
+    label.textContent=pinned ? "Bekreftet telefon · "+pinned.slice(-12) :
+      "Venter på den andre telefonens signerte nøkler"+candidate;
+    fsPairButton.hidden=Boolean(pinned)||!fsPeerBundle;
+  }
+  function fsFrame(comment){
+    if (!comment?.id||typeof comment.body!=="string"||!comment.body.startsWith(FS_MARKER)
+        ||comment.body.length>28000) return null;
+    try{
+      const frame=JSON.parse(comment.body.slice(FS_MARKER.length).trim());
+      if(!frame||frame.v!==1||frame.room!==roomId||!["prekeys","sealed"].includes(frame.kind))return null;
+      return frame;
+    }catch{return null;}
+  }
+  async function fsReceive(comment){
+    if(!comment?.id||fsSeen.has(comment.id))return;
+    fsSeen.add(comment.id);
+    if(fsSeen.size>8192)fsSeen.delete(fsSeen.values().next().value);
+    const frame=fsFrame(comment);if(!frame)return;
+    if(frame.kind==="prekeys"){
+      let fp;
+      try{fp=fsNative().inspectBundle(roomId,JSON.stringify(frame));}catch{return;}
+      if(fp===fsNative().fingerprint())return;
+      const pinned=fsNative().pinnedFingerprint(roomId);
+      if(pinned && pinned!==fp)return;
+      fsPeerFingerprint=fp;
+      fsPeerBundle=JSON.stringify(frame);
+      fsPanelUi();
+      if(pinned)queuePublish();
+      return;
+    }
+    try{
+      const plaintext=fsNative().decrypt(roomId,JSON.stringify(frame));
+      if(!plaintext)return;
+      const payload=JSON.parse(plaintext);
+      if(payload.kind==="event"&&window.NESTTransport?.applyEvent(payload.event)===true) {
+        setConnectionState("online","Kryptert engangsmelding mottatt · tidligere nøkkel slettet");
+        // Re-advertise only remaining / fresh one-time receiver prekeys.
+        await fsPublishBundle();
+      }
+    }catch{
+      // An untrusted GitHub writer can post malformed frames. Never show
+      // attacker-controlled exception text or lower the security profile.
+    }
+  }
+  async function fsPublishBundle(){
+    const frame=JSON.parse(fsNative().publicBundle(roomId));
+    const bundleIds=frame.keys.map(k=>k.id).join(":");
+    if(bundleIds===fsLastBundle)return;
+    await fsPost(frame);
+    fsLastBundle=bundleIds;
+  }
+  async function fsBootstrap(){
+    const issue=await api("/repos/"+encodeURIComponent(repoOwner)+"/"+encodeURIComponent(repoName)+"/issues/"+issueNumber);
+    const pages=Math.min(10,Math.ceil(Math.max(0,Number(issue.comments)||0)/100));
+    let newest="";
+    for(let p=Math.max(1,Math.ceil((Number(issue.comments)||0)/100)-pages+1);
+            p<=Math.max(1,Math.ceil((Number(issue.comments)||0)/100));p++){
+      if(!pages)break;
+      const comments=await api(fsPath()+"?per_page=100&page="+p);
+      for(const c of comments){
+        const stamp=String(c.created_at||c.updated_at||"");if(stamp>newest)newest=stamp;
+        await fsReceive(c);
+      }
+    }
+    lastPollAt=new Date((newest?Date.parse(newest):Date.now())-1000).toISOString();
+  }
+  async function fsPoll(){
+    const since=lastPollAt?"&since="+encodeURIComponent(lastPollAt):"";
+    const comments=await api(fsPath()+"?per_page=100"+since);
+    let newest=lastPollAt;
+    for(const c of comments){
+      const stamp=String(c.created_at||c.updated_at||"");if(stamp>newest)newest=stamp;
+      await fsReceive(c);
+    }
+    lastPollAt=new Date((newest?Date.parse(newest):Date.now())-1000).toISOString();
+  }
+  async function fsPublishEvents(){
+    if(!fsNative().pinnedFingerprint(roomId)||!fsPeerBundle) {
+      fsStatus();
+      setConnectionState("connecting","Bekreft mottakerens identitet før sending");
+      return;
+    }
+    for(const event of [...(workspace.outbox||[])]){
+      if(!["chat","task_comment","task_patch"].includes(event.type))continue;
+      const current=workspace.outbox.find(x=>x.id===event.id);
+      if(!current)continue;
+      // Persist the signed ciphertext first; a timeout retries the same sealed
+      // message. Never spend another one-time prekey to retry a failed POST.
+      if(!current.fsEnvelope) {
+        const raw=fsNative().encrypt(roomId,JSON.stringify({kind:"event",event}),fsPeerBundle);
+        current.fsEnvelope=raw;
+        persist({sync:false,renderNow:false});
+      }
+      const result=await fsPost(JSON.parse(current.fsEnvelope));
+      if(result){
+        workspace.outbox=workspace.outbox.filter(x=>x.id!==event.id);
+        persist({sync:false,renderNow:false});
+        setConnectionState("online","Kryptert melding publisert · mottakerbekreftelse ikke mottatt");
+      }
+    }
   }
 
   function rememberComment(id) {
@@ -451,6 +625,14 @@
 
   async function pollComments() {
     if (!window.NEST_GITHUB_CONNECTED) return;
+    if(fsMode){
+      let delay=POLL_MS;
+      try{await fsPoll();pollFailures=0;}
+      catch(e){pollFailures++;delay=retryDelay(pollFailures,e?.retryAfterMs);}
+      clearTimeout(pollTimer);
+      if(window.NEST_GITHUB_CONNECTED)pollTimer=setTimeout(pollComments,delay);
+      return;
+    }
     let delay = POLL_MS;
     try {
       const since = lastPollAt ? `&since=${encodeURIComponent(lastPollAt)}` : "";
@@ -529,7 +711,7 @@
     // The outbox is inside the encrypted local workspace. An interrupted
     // upload leaves the item queued. Duplicate deliveries merge by event ID.
     for (const event of [...(workspace.outbox || [])]) {
-      if (!["chat", "task_comment"].includes(event.type)) continue;
+      if (!["chat", "task_comment","task_patch"].includes(event.type)) continue;
       const encrypted = await encryptPayload({ kind: "event", event });
       if (encrypted.data.length > MAX_CHUNK) throw new Error("Kryptert hendelse er for stor.");
       const body = COMMENT_MARKER + "\n" + JSON.stringify({
@@ -549,6 +731,17 @@
 
   async function attemptPublish() {
     if (!window.NEST_GITHUB_CONNECTED) return;
+    if(fsMode){
+      try{await fsPublishEvents();syncFailures=0;}
+      catch(e){
+        syncFailures++;
+        const delay=retryDelay(syncFailures,e?.retryAfterMs);
+        setConnectionState("connecting","Kryptert GitHub-transport prøver på nytt");
+        clearTimeout(syncTimer);
+        if(window.NEST_GITHUB_CONNECTED)syncTimer=setTimeout(attemptPublish,delay);
+      }
+      return;
+    }
     try {
       await publishWorkspace();
       await publishPendingEvents();
@@ -587,15 +780,22 @@
     el.connectButton.disabled = true;
     setConnectionState("connecting", "Finner kryptert GitHub-kanal …");
     try {
-      window.NESTSecurity?.requireForwardSecretTransport?.("github_workspace");
-      if (window.NESTSecurity?.isStrict()) {
+      fsMode=Boolean(window.NESTSecurity?.isStrict?.());
+      if(!fsMode)window.NESTSecurity?.requireForwardSecretTransport?.("github_workspace");
+      if (fsMode) {
         window.NESTSecurity.requireNative();
         window.NESTSecurity.requireStrongChannelKey(password);
         const repoData = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
         window.NESTSecurity.requirePrivateRepo(repoData);
       }
-      await prepareRoom(channel, password);
-      // Validate inputs and private-repo policy before persisting a channel key.
+      if(fsMode){
+        // Room name only is a locator. DO NOT derive or retain the old static
+        // channel decryption key for strict GitHub communication.
+        roomId=bytesToHex(await sha256Bytes("nest-room:"+channel.trim().toLocaleLowerCase("nb")));
+        roomKey=null;
+        fsNative();
+      }else await prepareRoom(channel,password);
+      // Store channel input for reconnect, never reuse it as a GitHub FS key.
       secretSave("channel_password", password);
       issueNumber = await findOrCreateIssue();
       window.NEST_GITHUB_CONNECTED = true;
@@ -606,10 +806,18 @@
       el.chatForm.querySelector("button").disabled = false;
       el.channelHeading.textContent = `#${channel}`;
       el.peerCount.textContent = `GitHub #${issueNumber}`;
-      const bootstrapped = await fetchLatestSnapshot();
-      await publishWorkspace({ force: true });
-      await publishPendingEvents();
-      setConnectionState("online", bootstrapped ? "GitHub-synk aktiv · siste snapshot lastet" : "GitHub-synk aktiv · ny kanal");
+      if(fsMode){
+        fsPanelUi();
+        await fsPublishBundle();
+        await fsBootstrap();
+        setConnectionState("connecting","GitHub FS1 · identitetsverifisering");
+        await fsPublishEvents();
+      }else{
+        const bootstrapped = await fetchLatestSnapshot();
+        await publishWorkspace({ force: true });
+        await publishPendingEvents();
+        setConnectionState("online", bootstrapped ? "GitHub-synk aktiv · siste snapshot lastet" : "GitHub-synk aktiv · ny kanal");
+      }
       pollComments();
     } catch (error) {
       disconnectGithub();
@@ -619,6 +827,12 @@
 
   function disconnectGithub() {
     window.NEST_GITHUB_CONNECTED = false;
+    fsMode=false;
+    fsPeerBundle="";
+    fsPeerFingerprint="";
+    fsLastBundle="";
+    fsSeen.clear();
+    if(fsPanel){fsPanel.remove();fsPanel=null;fsPairButton=null;}
     clearTimeout(pollTimer);
     clearTimeout(syncTimer);
     pollTimer = null;
