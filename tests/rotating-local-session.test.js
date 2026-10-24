@@ -92,3 +92,10 @@ test("local transport is v4-only and release remains blocked",()=>{
  assert.match(java,/peer\.rememberAuthenticated\(messageId\)/);
  assert.match(read("SECURITY-READINESS.json"),/"release_blocked": true/);
 });
+
+test("QR invitation expiry is not mislabeled as a key-rotation security guarantee",()=>{
+ const wizard=read("nest-wizard-v091.js");
+ assert.match(wizard,/Forny QR-tid · samme kanalnøkkel/);
+ assert.match(wizard,/QR-utløp gjelder invitasjonskoden, ikke kanalnøkkelen/);
+ assert.doesNotMatch(wizard,/Lag ny QR med ny utløpstid/);
+});
