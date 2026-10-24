@@ -364,6 +364,7 @@
   async function receiveCompleteEnvelope(group) {
     try {
       const payload = await decryptEnvelope({ id: group.id, iv: group.iv, data: group.data });
+      if (payload.kind === "event") return window.NESTTransport?.applyEvent(payload.event) === true;
       if (payload.kind !== "workspace") return false;
       mergeWorkspace(payload.workspace);
       for (const id of group.commentIds || []) rememberComment(id);
@@ -400,6 +401,7 @@
     try {
       const payload = await decryptEnvelope({ id: chunk.id, iv: group.iv, data: group.parts.join("") });
       if (payload.kind === "workspace") mergeWorkspace(payload.workspace);
+      else if (payload.kind === "event") window.NESTTransport?.applyEvent(payload.event);
     } catch {
       setConnectionState("online", "GitHub tilkoblet · feil kanalpassord på en pakke");
     }
@@ -430,18 +432,19 @@
           chunks.push(chunk);
         }
       }
-      const groups = window.NESTCore.completeEnvelopeGroups(chunks);
-      for (const group of groups) {
-        if (await receiveCompleteEnvelope(group)) {
-          const anchor = newestSeenAt ? Date.parse(newestSeenAt) : Date.now();
-          lastPollAt = new Date((Number.isFinite(anchor) ? anchor : Date.now()) - 1000).toISOString();
-          return true;
-        }
-      }
       page--;
     }
-    // A fresh v0.9.1 setup may contain only encrypted handshake tests.
-    // Wrong keys for an EXISTING workspace still fail closed.
+    const groups = window.NESTCore.completeEnvelopeGroups(chunks);
+    // Replay bounded bootstrap oldest-to-newest so later event envelopes
+    // are not skipped after finding a snapshot.
+    let restored = false;
+    for (const group of [...groups].reverse()) {
+      if (await receiveCompleteEnvelope(group)) restored = true;
+    }
+    const anchor = newestSeenAt ? Date.parse(newestSeenAt) : Date.now();
+    lastPollAt = new Date((Number.isFinite(anchor) ? anchor : Date.now()) - 1000).toISOString();
+    if (restored) return true;
+    // A fresh channel may contain only encrypted handshake tests.
     if (!hasWorkspaceEnvelopes) return false;
     throw new Error(`Kanalhistorikk finnes (${commentCount} kommentarer), men ingen komplett dekrypterbar snapshot ble funnet i de siste ${pagesRead * 100}. Kontroller kanalpassordet eller reparer synkhistorikken før du publiserer.`);
   }
@@ -472,8 +475,19 @@
     }
   }
 
-  async function digestWorkspace() {
-    const bytes = await sha256Bytes(JSON.stringify(workspace));
+  // Legacy sync is a task-state channel, not a history archive.
+  // Individual chat messages and comments use isolated encrypted event envelopes.
+  // Transport migration reduces history duplication; it is NOT a Double Ratchet.
+  function transportSnapshot() {
+    return {
+      version: workspace.version, logicalCounter: workspace.logicalCounter,
+      updatedAt: workspace.updatedAt,
+      tasks: workspace.tasks.map(task => ({...task, comments: []})),
+      chat: []
+    };
+  }
+  async function digestWorkspace(payload) {
+    const bytes = await sha256Bytes(JSON.stringify(payload));
     return bytesToHex(bytes);
   }
 
@@ -487,9 +501,10 @@
       const repoData = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
       window.NESTSecurity.requirePrivateRepo(repoData);
     }
-    const digest = await digestWorkspace();
+    const snapshot = transportSnapshot();
+    const digest = await digestWorkspace(snapshot);
     if (!force && digest === lastSentDigest) return;
-    const encrypted = await encryptPayload({ kind: "workspace", workspace });
+    const encrypted = await encryptPayload({ kind: "workspace", workspace: snapshot });
     const total = Math.max(1, Math.ceil(encrypted.data.length / MAX_CHUNK));
     const envelopeId = crypto.randomUUID();
     for (let index = 0; index < total; index++) {
@@ -509,10 +524,32 @@
     el.peerCount.textContent = "GitHub oppdatert";
   }
 
+  async function publishPendingEvents() {
+    window.NESTSecurity?.requireForwardSecretTransport?.("github_workspace");
+    // The outbox is inside the encrypted local workspace. An interrupted
+    // upload leaves the item queued. Duplicate deliveries merge by event ID.
+    for (const event of [...(workspace.outbox || [])]) {
+      if (!["chat", "task_comment"].includes(event.type)) continue;
+      const encrypted = await encryptPayload({ kind: "event", event });
+      if (encrypted.data.length > MAX_CHUNK) throw new Error("Kryptert hendelse er for stor.");
+      const body = COMMENT_MARKER + "\n" + JSON.stringify({
+        v: 2, kind: "event", room: roomId, id: crypto.randomUUID(), part: 1, total: 1,
+        iv: encrypted.iv, data: encrypted.data
+      });
+      await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}/issues/${issueNumber}/comments`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({body})
+      });
+      workspace.outbox = workspace.outbox.filter(item => item.id !== event.id);
+      persist({sync: false, renderNow: false});
+    }
+  }
+
   async function attemptPublish() {
     if (!window.NEST_GITHUB_CONNECTED) return;
     try {
       await publishWorkspace();
+      await publishPendingEvents();
       setConnectionState("online", "GitHub-synk aktiv");
     } catch (error) {
       syncFailures++;
@@ -569,6 +606,7 @@
       el.peerCount.textContent = `GitHub #${issueNumber}`;
       const bootstrapped = await fetchLatestSnapshot();
       await publishWorkspace({ force: true });
+      await publishPendingEvents();
       setConnectionState("online", bootstrapped ? "GitHub-synk aktiv · siste snapshot lastet" : "GitHub-synk aktiv · ny kanal");
       pollComments();
     } catch (error) {

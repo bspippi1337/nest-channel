@@ -29,7 +29,7 @@ let roomKey = null;
 let connectedNickname = "";
 
 function nowIso() { return new Date().toISOString(); }
-function blankWorkspace() { return { version: 3, logicalCounter: 0, tasks: [], chat: [], updatedAt: nowIso() }; }
+function blankWorkspace() { return { version: 3, logicalCounter: 0, tasks: [], chat: [], outbox: [], updatedAt: nowIso() }; }
 
 function normalizeWorkspace(value) {
   if (!value || typeof value !== "object") return blankWorkspace();
@@ -38,7 +38,11 @@ function normalizeWorkspace(value) {
     logicalCounter: Math.max(0, Math.floor(Number(value.logicalCounter) || 0)),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : nowIso(),
     tasks: Array.isArray(value.tasks) ? value.tasks.map(normalizeTask) : [],
-    chat: Array.isArray(value.chat) ? value.chat.map(normalizeChat).filter(Boolean).slice(-300) : []
+    chat: Array.isArray(value.chat) ? value.chat.map(normalizeChat).filter(Boolean).slice(-300) : [],
+    // Local encrypted queue; NEVER accept a remote transport snapshot's outbox.
+    outbox: Array.isArray(value.outbox) ? value.outbox.filter(event =>
+      event && typeof event.id === "string" && ["chat","task_comment"].includes(event.type)
+      && typeof event.createdAt === "string").slice(-256) : []
   };
 }
 
@@ -137,6 +141,29 @@ function touchTask(task, fields = [], timestamp = nowIso()) {
   task.updatedAt = timestamp;
 }
 
+function queueLocalEvent(type, data) {
+  const event = { id: crypto.randomUUID(), type, createdAt: nowIso(), ...data };
+  if (workspace.outbox.length >= 256) throw new Error("Sendekø full. Koble til før flere meldinger.");
+  workspace.outbox.push(event);
+  return event;
+}
+function applyTransportEvent(event) {
+  if (!event || typeof event !== "object" || typeof event.id !== "string"
+      || typeof event.createdAt !== "string" || !/^[0-9a-f-]{36}$/i.test(event.id)) return false;
+  if (event.type === "chat") {
+    const message = normalizeChat(event.message);
+    if (!message || message.id !== event.id || message.text.length > 1000) return false;
+    workspace.chat = NESTCore.mergeById(workspace.chat, [message], "createdAt").slice(-300);
+  } else if (event.type === "task_comment") {
+    const task = workspace.tasks.find(item => item.id === event.taskId);
+    const comment = normalizeComment(event.comment);
+    if (!task || !comment || comment.id !== event.id || comment.text.length > 2000) return false;
+    task.comments = NESTCore.mergeById(task.comments, [comment], "createdAt");
+  } else return false;
+  persist({ sync: false });
+  return true;
+}
+window.NESTTransport = Object.freeze({applyEvent});
 function persist({ sync = true, renderNow = true } = {}) {
   workspace.version = 3;
   workspace.logicalCounter = logicalCounter;
@@ -336,7 +363,10 @@ el.filters.addEventListener("click", event => {
 el.searchInput.addEventListener("input", renderTasks);
 el.chatForm.addEventListener("submit", event => {
   event.preventDefault(); const text = el.chatInput.value.trim(); if (!text || !transportReady()) return;
-  workspace.chat.push({ id: crypto.randomUUID(), author: connectedNickname || el.nickname.value.trim() || "Ukjent", text, createdAt: nowIso(), clientId });
+  if (workspace.outbox.length >= 256) return alert("Sendekø full. Koble til før flere meldinger.");
+  const message = { id: crypto.randomUUID(), author: connectedNickname || el.nickname.value.trim() || "Ukjent", text, createdAt: nowIso(), clientId };
+  queueLocalEvent("chat", { id: message.id, createdAt: message.createdAt, message });
+  workspace.chat.push(message);
   workspace.chat = workspace.chat.slice(-300); el.chatInput.value = ""; persist();
 });
 el.addDependencyButton.addEventListener("click", () => {
@@ -346,7 +376,10 @@ el.addDependencyButton.addEventListener("click", () => {
 });
 el.addCommentButton.addEventListener("click", () => {
   const task = taskById(el.editTaskId.value); const text = el.commentText.value.trim(); if (!task || !text) return;
-  task.comments.push({ id: crypto.randomUUID(), author: connectedNickname || el.nickname.value.trim() || task.assignee || "Ukjent", text, createdAt: nowIso() });
+  if (workspace.outbox.length >= 256) return alert("Sendekø full. Koble til før flere kommentarer.");
+  const comment = { id: crypto.randomUUID(), author: connectedNickname || el.nickname.value.trim() || task.assignee || "Ukjent", text, createdAt: nowIso() };
+  queueLocalEvent("task_comment", { id: comment.id, createdAt: comment.createdAt, taskId: task.id, comment });
+  task.comments.push(comment);
   touchTask(task); el.commentText.value = ""; persist();
 });
 el.saveTaskButton.addEventListener("click", () => {

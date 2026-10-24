@@ -14,6 +14,7 @@
   const connectCard = document.querySelector(".connect-card");
 
   let autoLocalSendTimer = null;
+  const sentLocalEventIds = new Set();
   let autoLocalStarted = false;
   let activeMobilePane = "tasks";
   let unreadChat = 0;
@@ -266,8 +267,21 @@
     autoLocalSendTimer = setTimeout(() => {
       try {
         const raw = localStorage.getItem(WORKSPACE_KEY) ||
-          JSON.stringify({ version: 2, tasks: [], chat: [], updatedAt: new Date().toISOString() });
-        window.NativeLocal?.sendWorkspace?.(raw);
+          JSON.stringify({ version: 3, tasks: [], chat: [], updatedAt: new Date().toISOString() });
+        const data = JSON.parse(raw);
+        // The full local workspace contains historical plaintext. Never send
+        // its chat/comment history after rotating network session keys.
+        const safeSnapshot = {
+          version: data.version || 3, logicalCounter: data.logicalCounter || 0,
+          updatedAt: data.updatedAt, chat: [],
+          tasks: (data.tasks || []).map(task => ({...task, comments: []}))
+        };
+        window.NativeLocal?.sendWorkspace?.(JSON.stringify(safeSnapshot));
+        for (const event of data.outbox || []) {
+          if (sentLocalEventIds.has(event.id)) continue;
+          window.NativeLocal?.sendWorkspace?.(JSON.stringify({kind: "event", event}));
+          sentLocalEventIds.add(event.id);
+        }
       } catch {}
     }, delay);
   }
@@ -291,7 +305,9 @@
       },
       onWorkspace(raw) {
         try {
-          mergeWorkspace(JSON.parse(String(raw)));
+          const data = JSON.parse(String(raw));
+          if (data.kind === "event") window.NESTTransport?.applyEvent(data.event);
+          else mergeWorkspace(data);
           autoLocalSend(650);
         } catch {}
       },
@@ -316,11 +332,13 @@
       autoLocalSend(500);
     } catch {
       autoLocalStarted = false;
+      sentLocalEventIds.clear();
       window.NEST_LOCAL_CONNECTED = false;
     }
 
     window.addEventListener("nest:workspace-changed", () => autoLocalSend());
     window.addEventListener("beforeunload", () => {
+      sentLocalEventIds.clear();
       try { window.NativeLocal?.stop?.(); } catch {}
     });
   }
