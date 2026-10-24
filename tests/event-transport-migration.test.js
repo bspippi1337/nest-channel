@@ -63,7 +63,7 @@ test("malicious standalone events are rejected without workspace changes",()=>{
  const bad=[
   {id:uid(4),type:"chat",createdAt:"date",message:{id:uid(4),text:"X".repeat(1001)}},
   {id:uid(5),type:"chat",createdAt:"date",message:{id:uid(888),text:"spoof"}},
-  {id:uid(6),type:"task_comment",createdAt:"date",taskId:"unknown",comment:{id:uid(6),text:"x"}},
+  {id:uid(6),type:"task_comment",createdAt:"date",taskId:"unknown",comment:{id:uid(6),text:"X".repeat(2001)}},
   {id:"../etc/passwd",type:"chat",createdAt:"date",message:{text:"x"}},
   {id:uid(7),type:"keys",createdAt:"date",message:{text:"x"}}
  ];
