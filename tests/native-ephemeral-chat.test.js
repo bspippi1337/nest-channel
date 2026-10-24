@@ -77,3 +77,13 @@ test("authenticated peer identity replaces untrusted sender clientId on local ch
  assert.match(native,/listener\.onChat\(chat\.toString\(\)\)/);
  assert.match(native,/display \+ " · " \+ sender\.substring/);
 });
+
+test("strict NativeBridge withholds old GitHub token and channel root from WebView",()=>{
+ const src=read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+ const start=src.indexOf("public String loadSecret(String key)");
+ const end=src.indexOf("@JavascriptInterface",start);
+ const readBridge=src.slice(start,end);
+ assert.match(readBridge,/isHighThreatStrict\(\)/);
+ assert.match(readBridge,/"github_token"\.equals\(key\) \|\| "channel_password"\.equals\(key\)/);
+ assert.match(readBridge,/return "";/);
+});
