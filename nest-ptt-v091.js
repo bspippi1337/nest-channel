@@ -246,6 +246,7 @@
     if (busy || active) return;
     busy = true; mainButton.disabled = true;
     try {
+      window.NESTSecurity?.requireRadioAllowed();
       const details = state();
       if (!details.connected || !details.key || !details.room) throw new Error("Koble til kryptert GitHub-kanal først.");
       if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(details.repo)) throw new Error("Ugyldig GitHub-repo.");

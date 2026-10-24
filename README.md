@@ -1,3 +1,7 @@
+## Experimental high-threat security branch (0.9.3 candidate, versionCode 15)
+
+Android versionCode is incremented to 15; original app ID and 0.9.0 signing certificate identity are preserved in the protected release workflow. **Do not merge or ship to Play until independent review and two-phone tests pass.** 0.9.3 source hardens native WebView network egress and block unknown asset requests, checks private repo visibility before encrypted uploads, refuses risky browser/unsigned storage paths in high-threat profile and avoids putting channel passwords into WebView sessionStorage in the APK. These are risk reductions, not anonymity or forward secrecy.
+
 ## 0.9.2 mainline signing and Play update continuity
 
 Sideload testing and Google Play share the existing v0.9.0 Android package identity and original release app-signing certificate. Debug APKs are strictly developer artifacts and cannot update the original signed app. Every push to main requests a **release-signed APK and AAB from the same commit**; the release CI job rejects a certificate that differs from the public v0.9.0 certificate fingerprint. Use the signed AAB first on a Google Play testing track and then promote **that exact AAB** to Production, rather than rebuilding. During Play App Signing enrollment, supply the original v0.9.0 **app-signing key**; a Play upload key may be different. See `RELEASE_PLAN.md`.

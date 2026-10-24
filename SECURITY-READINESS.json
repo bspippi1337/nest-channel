@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "product": "NEST Channel",
+  "target": "0.9.3",
+  "release_blocked": true,
+  "notice": "Development-stage procedural gate. Metadata cannot prove cryptographic security by itself.",
+  "criteria": [
+    {
+      "id": "independent_crypto_protocol_review",
+      "statement": "Independent review of sender authentication, forward secrecy, rotation, post-compromise recovery and key epochs.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    },
+    {
+      "id": "native_secret_isolation",
+      "statement": "No long-lived GitHub or channel secrets exposed to arbitrary WebView script; independent native bridge review.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    },
+    {
+      "id": "replay_rollback_membership",
+      "statement": "Cryptographic replay/rollback protection and verified device membership, rekey and revocation.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    },
+    {
+      "id": "traffic_metadata_threat_model",
+      "statement": "Verified network and metadata threat model including GitHub accounts, cellular operators and IP exposure.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    },
+    {
+      "id": "two_physical_android_field_tests",
+      "statement": "Adversarial two-device tests across Wi-Fi and mobile carrier, 403/429, outages, lost devices and migration.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    },
+    {
+      "id": "independent_mobile_penetration_test",
+      "statement": "Third-party OWASP MASVS mobile penetration test and remediation of critical/high findings.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    },
+    {
+      "id": "signing_play_continuity",
+      "statement": "Verify signed 0.9.0 upgrade to candidate and Play App Signing certificate identity.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    },
+    {
+      "id": "incident_response",
+      "statement": "Test compromised device recovery, emergency key revocation, secure backups and source-protection runbooks.",
+      "status": "unverified",
+      "evidence_url": "",
+      "approved_by": ""
+    }
+  ]
+}

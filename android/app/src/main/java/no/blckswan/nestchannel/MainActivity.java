@@ -3,6 +3,7 @@ package no.blckswan.nestchannel;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
@@ -12,6 +13,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
+import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -21,6 +23,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -40,6 +43,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
+import java.util.Collections;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -60,6 +65,7 @@ public final class MainActivity extends Activity {
     private static final String AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
     private static final String OAUTH_REDIRECT = "nestchannel://oauth/callback";
     private static final String MODE_PREFERENCES = "nest.sync.mode";
+    private static final String THREAT_PROFILE_KEY = "nest.high_threat.strict";
     private static final String PKCE_VERIFIER_KEY = "github_pkce_verifier";
     private static final String PKCE_STATE_KEY = "github_pkce_state";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -75,10 +81,17 @@ public final class MainActivity extends Activity {
     private volatile boolean pageReady = false;
     private volatile String pendingPkceResult = "";
 
+    private boolean isHighThreatStrict() {
+        return modePreferences == null || modePreferences.getBoolean(THREAT_PROFILE_KEY, true);
+    }
+
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Prevent ordinary screenshots, screen recordings and Recents thumbnails.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        WebView.setWebContentsDebuggingEnabled(false);
         getWindow().setStatusBarColor(Color.rgb(7, 16, 12));
         getWindow().setNavigationBarColor(Color.rgb(7, 16, 12));
         secureStore = new SecureStore(this);
@@ -140,18 +153,24 @@ public final class MainActivity extends Activity {
         // PTT is enabled only after a visible explicit radio-activation gesture.
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(true);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
         settings.setSupportMultipleWindows(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.2");
+        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.3");
 
         // Only bundled app-origin code may ever obtain access to native credentials.
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> {
+                    // JS policy is advisory; Android independently denies capture in strict mode.
+                    if (isHighThreatStrict()) { request.deny(); return; }
                     Uri origin = request.getOrigin();
+                    if (origin == null) { request.deny(); return; }
                     if (!"https".equalsIgnoreCase(origin.getScheme())
                             || !"appassets.androidplatform.net".equalsIgnoreCase(origin.getHost())) {
                         request.deny();
@@ -192,12 +211,22 @@ public final class MainActivity extends Activity {
                         && "appassets.androidplatform.net".equalsIgnoreCase(uri.getHost())
                         && String.valueOf(uri.getPath()).startsWith("/assets/");
                 // Do not allow a navigated remote page to obtain the NativeHost JS bridge.
-                return !bundled;
+                return !bundled || !request.isForMainFrame();
             }
             @Nullable
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return loader.shouldInterceptRequest(request.getUrl());
+                Uri uri = request.getUrl();
+                String host = uri.getHost();
+                if (!"https".equalsIgnoreCase(uri.getScheme())) return blockedResource(403);
+                if ("appassets.androidplatform.net".equalsIgnoreCase(host)) {
+                    WebResourceResponse bundled = loader.shouldInterceptRequest(uri);
+                    return bundled != null ? bundled : blockedResource(404);
+                }
+                // CSP additionally restricts fetch/connect; this native gate rejects
+                // non-API traffic even if browser content is tampered with.
+                if ("api.github.com".equalsIgnoreCase(host)) return null;
+                return blockedResource(403);
             }
 
             @Override
@@ -221,18 +250,63 @@ public final class MainActivity extends Activity {
         handleOAuthIntent(intent);
     }
 
+    // The browser may read only narrowly documented WebView-held values.
+    // Native-only OAuth verifier/state can never be queried from a JS frame.
+    private static boolean webSecretAllowed(String key) {
+        if (key == null) return false;
+        if ("github_token".equals(key) || "github_client_id".equals(key)
+                || "channel_password".equals(key)) return true;
+        return key.matches("workspace_v091_\\.(?:offline|[a-f0-9]{64})");
+    }
+
     private final class NativeBridge {
         @JavascriptInterface
-        public void saveSecret(String key, String value) { secureStore.put(key, value); }
+        public boolean isHighThreatMode() { return isHighThreatStrict(); }
+
+        @JavascriptInterface
+        public void requestThreatProfileToggle() {
+            runOnUiThread(() -> {
+                final boolean wasStrict = isHighThreatStrict();
+                final String message = wasStrict
+                        ? "Deaktivering åpner for IP-eksponering via WebRTC, offentlige repoer og utklippstavle. Skal ikke brukes til kildevern eller i krigsområder. Bytt til standard beta?"
+                        : "Aktivering sperrer direkte radio, offentlige repoer og kopiering av hemmelige invitasjoner. Det gir ikke sikkerhetssertifisering. Aktiver streng profil?";
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("NEST sikkerhetsprofil")
+                        .setMessage(message)
+                        .setNegativeButton("Avbryt", (d, w) -> {})
+                        .setPositiveButton(wasStrict ? "Bekreft nedgradering" : "Aktiver streng profil", (d, w) -> {
+                            if (!modePreferences.edit().putBoolean(THREAT_PROFILE_KEY, !wasStrict).commit()) return;
+                            // Mute any active PTT stream before reloading the WebView policy.
+                            webView.evaluateJavascript("window.NestPTT091&&window.NestPTT091.stop&&window.NestPTT091.stop()", result -> webView.reload());
+                        })
+                        .show();
+            });
+        }
+
+        @JavascriptInterface
+        public void saveSecret(String key, String value) {
+            if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
+            secureStore.put(key, value);
+        }
+
+        @JavascriptInterface
+        public boolean hasSecret(String key) {
+            if (!webSecretAllowed(key)) return false;
+            return secureStore.contains(key);
+        }
 
         @JavascriptInterface
         public String loadSecret(String key) {
+            if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
             if ("github_token".equals(key) && "local".equals(modePreferences.getString("mode", "auto"))) return "";
             return secureStore.get(key);
         }
 
         @JavascriptInterface
-        public void deleteSecret(String key) { secureStore.remove(key); }
+        public void deleteSecret(String key) {
+            if (!webSecretAllowed(key)) throw new SecurityException("Secret key not permitted");
+            secureStore.remove(key);
+        }
 
         @JavascriptInterface
         public void setSyncMode(String mode) {
@@ -282,6 +356,17 @@ public final class MainActivity extends Activity {
             try {
                 Uri uri = Uri.parse(rawUrl);
                 if (!"https".equalsIgnoreCase(uri.getScheme())) return;
+                String host = uri.getHost();
+                String path = uri.getPath() == null ? "" : uri.getPath();
+                boolean githubAllowed = "github.com".equalsIgnoreCase(host) && (
+                        "/signup".equals(path) || "/notifications".equals(path)
+                        || "/login/device".equals(path)
+                        || "/settings/tokens/new".equals(path)
+                        || "/settings/personal-access-tokens/new".equals(path));
+                boolean helpAllowed = "chatgpt.com".equalsIgnoreCase(host)
+                        && (path.isEmpty() || "/".equals(path));
+                if (!githubAllowed && !helpAllowed) return;
+                if (uri.getUserInfo() != null || uri.getFragment() != null) return;
                 startActivity(new Intent(Intent.ACTION_VIEW, uri));
             } catch (Exception ignored) {}
         }
@@ -521,6 +606,12 @@ public final class MainActivity extends Activity {
 
     private void callJavaScript(String script) {
         runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript(script, null); });
+    }
+
+    private static WebResourceResponse blockedResource(int status) {
+        return new WebResourceResponse("text/plain", "UTF-8", status,
+                status == 404 ? "Not Found" : "Forbidden",
+                Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
     }
 
     private static String randomUrlToken(int bytes) {

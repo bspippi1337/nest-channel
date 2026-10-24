@@ -125,12 +125,15 @@
       throw new Error("Dette er ikke en NEST 0.9.2-invitasjon.");
     }
     const data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(fromB64url(raw.slice(9))));
+    if (window.NESTSecurity?.isStrict()) window.NESTSecurity.requireStrongChannelKey(data.secret);
     if (data.v !== 1 || !validRepo(data.repo) || !validChannel(data.channel)
         || !/^[A-Za-z0-9_-]{43}$/.test(data.secret)
         || !Number.isSafeInteger(data.issue) || data.issue < 1
         || !Number.isFinite(data.expires) || data.expires < Date.now() || data.expires > Date.now() + 31 * 60 * 1000) {
       throw new Error("Invitasjonen er feil, utløpt eller endret. Be om en ny QR.");
     }
+    // Drop the redundant editable QR payload as soon as the key is imported.
+    state.pendingInvite = "";
     state.repo = data.repo; state.channel = data.channel; state.key = data.secret;
     state.issue = data.issue; state.expires = data.expires;
     state.role = "join";
@@ -141,10 +144,13 @@
     const [owner, repo] = state.repo.split("/");
     const data = await request("/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo));
     if (!data.has_issues) throw new Error("Dette repoet har Issues deaktivert.");
+    window.NESTSecurity?.requirePrivateRepo(data);
     state.visibility = data.private ? "private" : "public";
     return data;
   }
   async function createRepo() {
+    if (window.NESTSecurity?.isStrict() && state.visibility !== "private")
+      throw new Error("Høyrisikoprofil krever privat GitHub-repo.");
     const name = "nest-" + hex(randomBytes(5));
     const data = await request("/user/repos", { method: "POST", body: {
       name, description: "NEST encrypted transport", private: state.visibility === "private",
@@ -206,6 +212,8 @@
     cacheIssue(hash);
   }
   async function encryptedRoundTrip() {
+    window.NESTSecurity?.requireNative();
+    window.NESTSecurity?.requireStrongChannelKey(state.key);
     const hash = await roomHash(state.channel);
     const salt = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("nest-key:" + hash))).slice(0, 16);
     const material = await crypto.subtle.importKey("raw", enc.encode(state.key), "PBKDF2", false, ["deriveKey"]);
@@ -272,6 +280,7 @@
     render();
   }
   async function copyInvite() {
+    window.NESTSecurity?.requireClipboardAllowed();
     const raw = inviteData();
     try { await navigator.clipboard.writeText(raw); state.error = "Engangsoverføring kopiert. Send aldri koden i et offentlig repo."; }
     catch { window.prompt("Kopier privat til den andre telefonen:", raw); }
@@ -309,6 +318,8 @@
     tag("p", "NEST · 0.9.2 · " + (state.role === "host" ? "Telefon A" : state.role === "join" ? "Telefon B" : "Velkommen"), "nest91-kicker", body);
     if (state.error) note(body, state.error, "error");
     if (state.step === "welcome") {
+      note(body, "NEST er testprogramvare, ikke godkjent for kildevern, krigsområder eller statsaktører.");
+      if (window.NESTSecurity?.isStrict()) note(body, "Streng profil krever Android-appen. Ikke send følsomme data via nettleserversjonen.");
       note(body, "Ingen laptop. NEST krypterer meldingene på telefonen. Et privat GitHub-repo skjuler innhold og repoaktivitet for uvedkommende; GitHub som tjeneste ser fortsatt kontoen og trafikken.");
       button(body, "Telefon A · Opprett kanal", () => { state.role = "host"; state.channel ||= randomChannel(); state.key ||= randKey(); next("account"); }, "primary");
       button(body, "Telefon B · Bli med", () => { state.role = "join"; next("import"); });
@@ -368,7 +379,7 @@
       note(body, "NEST lager en tilfeldig 256-bits nøkkel. Ikke velg et kort passord. Kanalnavn må bestå av bokstaver, tall, punktum, bindestrek eller understrek.");
       field(body, "Kanalnavn", "channel", { maxLength: 48 });
       field(body, "Ditt kallenavn", "nickname", { maxLength: 32, placeholder: state.login });
-      note(body, "Nøkkelen vises ikke på GitHub. Den overføres kun gjennom QR eller en privat invitasjonskode.");
+      note(body, "Nøkkelen vises ikke på GitHub. Høyrisikoprofil krever direkte QR-skanning.");
       button(body, "Opprett og test kanalen", async () => {
         if (!validChannel(state.channel)) throw new Error("Ugyldig kanalnavn.");
         await verifyRepo(); await findOrCreateIssue(); await encryptedRoundTrip(); next("invite");
@@ -384,7 +395,9 @@
       if (native()?.makeQrCode) {
         try { image.src = native().makeQrCode(raw); } catch { image.hidden = true; }
       } else image.hidden = true;
-      button(body, "Kopier privat invitasjonskode", copyInvite);
+      if (!window.NESTSecurity?.isStrict())
+        button(body, "Kopier privat invitasjonskode", copyInvite);
+      else note(body, "Høyrisikoprofil: nøkkelen kan bare overføres ved direkte QR-skanning. Utklippstavlen er sperret.");
       button(body, "Lag ny QR med ny utløpstid", () => render());
       if (state.visibility === "private") {
         note(body, "To separate GitHub-kontoer er anbefalt. Oppgi den andres GitHub-brukernavn, inviter med skrivetilgang, og be telefon B godkjenne invitasjonen før kanalen testes.");
