@@ -76,6 +76,8 @@ test("v6 refuses huge sequence jump without ratchet computation",()=>{
 test("Java native local transport consumes message keys and erases past chains",()=>{
  const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
  assert.match(java,/PROTOCOL_VERSION = 6/);
+ assert.doesNotMatch(java,/peer\.key/);
+ assert.match(java,/Arrays\.fill\(root, \(byte\) 0\)/);
  assert.match(java,/NEST-LOCAL-V6-CHAIN:/);
  assert.match(java,/NEST-LOCAL-V6-MESSAGE/);
  assert.match(java,/NEST-LOCAL-V6-NEXT/);
