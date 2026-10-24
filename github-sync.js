@@ -344,10 +344,13 @@
         || typeof item.iv !== "string" || !/^[a-zA-Z0-9+/]{16,32}={0,2}$/.test(item.iv)
         || typeof item.data !== "string" || !item.data.length || item.data.length > MAX_CHUNK
         || !/^[a-zA-Z0-9+/=]+$/.test(item.data)
-        || !Number.isSafeInteger(Number(item.total || 1)) || Number(item.total || 1) < 1
-        || Number(item.total || 1) > MAX_ENVELOPE_PARTS
-        || !Number.isSafeInteger(Number(item.part || 1)) || Number(item.part || 1) < 1
-        || Number(item.part || 1) > Number(item.total || 1)) return null;
+        // v2 always declares a strict positive integral part and total.
+        // Only legacy v1 may omit them; explicit zero is never a valid value.
+        || (Number(item.v) === 2 && (!Number.isSafeInteger(item.total) || !Number.isSafeInteger(item.part)))
+        || !Number.isSafeInteger(Number(item.total ?? 1)) || Number(item.total ?? 1) < 1
+        || Number(item.total ?? 1) > MAX_ENVELOPE_PARTS
+        || !Number.isSafeInteger(Number(item.part ?? 1)) || Number(item.part ?? 1) < 1
+        || Number(item.part ?? 1) > Number(item.total ?? 1)) return null;
       return item;
     } catch { return null; }
   }
