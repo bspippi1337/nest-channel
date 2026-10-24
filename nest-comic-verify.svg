@@ -1,1 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 250" role="img"><title>To telefonskjermer viser en fullført funksjonstest, ikke sikkerhetsbevis</title><style>.hand{stroke:#e4efdb;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}.mint{stroke:#acebc7;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}.gold{stroke:#d6b489;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}.dim{stroke:#83a89a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.bg{fill:#0e281f}.fill{fill:#e4efdb}@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;transform:none!important;stroke-dashoffset:0!important;opacity:1!important}}</style><style>.tick{stroke-dasharray:105;stroke-dashoffset:105;animation:draw 1s ease-out .3s 1 forwards}@keyframes draw{to{stroke-dashoffset:0}}</style><rect x="100" y="23" width="132" height="203" rx="16" class="bg" stroke="#e4efdb" stroke-width="3"/><path class="dim" d="M120 68h94m-94 22h57"/><circle class="mint" cx="166" cy="156" r="32"/><path class="mint tick" d="M145 153l15 16 31-34"/><path class="gold" d="M249 130h140m-13-12l14 12-14 12" stroke-dasharray="6 9"/><rect x="408" y="23" width="132" height="203" rx="16" class="bg" stroke="#e4efdb" stroke-width="3"/><path class="dim" d="M428 68h94m-94 22h57"/><circle class="mint" cx="474" cy="156" r="32"/><path class="mint tick" d="M453 153l15 16 31-34"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 250" role="img" aria-label="To mennesker kontrollerer kanaltesten på hver sin telefon">
+<title>To mennesker kontrollerer kanaltesten på hver sin telefon</title>
+<style>
+.ink{fill:none;stroke:#ecf4e5;stroke-width:3.1;stroke-linecap:round;stroke-linejoin:round}
+.pale{fill:none;stroke:#80b09b;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+.mint{fill:none;stroke:#bcecca;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.gold{fill:none;stroke:#e4c18c;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.panel{fill:#0a241c;stroke:#bcecca;stroke-width:2.6}
+.fill{fill:#d9ead5}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;stroke-dashoffset:0!important;opacity:1!important}}
+</style>
+<style>.tick{stroke-dasharray:85;stroke-dashoffset:85;animation:check 1s ease-out .2s 1 forwards}@keyframes check{to{stroke-dashoffset:0}}</style>
+<path class="pale" d="M15 237Q320 246 625 237"/>
+<g class="person" transform="translate(108 0) scale(1 1)">
+  <circle class="ink" cx="0" cy="66" r="25"/>
+  <path class="ink" d="M-10 60l-1 3m22-2l-1 3M-7 85Q-2 88 6 84M-3 91L-6 151 M-6 152L-37 213 M-6 152L22 213M-3 114L-33 142 M-4 113L18 136"/>
+  <path class="pale" d="M-18 46q-1-14 10-17m17 0q11 4 12 15"/>
+  <g class="phone">
+    <rect class="panel" x="14" y="123" width="35" height="59" rx="7" transform="rotate(-9 14 123)"/>
+    <path class="pale" d="M22 137l18-3M22 148l18-3" />
+    <circle class="fill" cx="30" cy="171" r="2.2"/>
+  </g>
+  </g><g class="person" transform="translate(532 0) scale(-1 1)">
+  <circle class="ink" cx="0" cy="66" r="25"/>
+  <path class="ink" d="M-10 60l-1 3m22-2l-1 3M-7 85Q-2 88 6 84M-3 91L-6 151 M-6 152L-37 213 M-6 152L22 213M-3 114L-33 142 M-4 113L18 136"/>
+  <path class="pale" d="M-18 46q-1-14 10-17m17 0q11 4 12 15"/>
+  <g class="phone">
+    <rect class="panel" x="14" y="123" width="35" height="59" rx="7" transform="rotate(-9 14 123)"/>
+    <path class="pale" d="M22 137l18-3M22 148l18-3" />
+    <circle class="fill" cx="30" cy="171" r="2.2"/>
+  </g>
+  </g>
+
+<path class="gold" d="M198 112Q319 72 441 112" stroke-dasharray="7 8"/>
+<g class="ticks">
+ <circle class="mint" cx="271" cy="138" r="32"/><path class="mint tick" d="M252 138l14 15 27-31"/>
+ <circle class="mint" cx="368" cy="138" r="32"/><path class="mint tick" d="M350 138l13 15 28-31"/>
+</g>
+
+</svg>

@@ -258,15 +258,15 @@
     <div class="about-section-heading">
       <p class="about-overline">ILLUSTRERT HISTORIE</p>
       <h3 id="aboutComicTitle">Først. Så. Nå.</h3>
-      <p>Det er ikke enda en liste. Det er forbindelsen mellom handlingene som skaper fremdrift.</p>
+      <p>Fra person A til person B: meldingen sendes, nøkkelen deles direkte og neste steg blir synlig.</p>
     </div>
     <figure class="about-comic-frame nest-handdrawn">
       <img src="nest-comic-about.svg" alt="To mennesker med telefoner og en lukket, kryptert konvolutt på vei mellom dem" loading="lazy" decoding="async">
-      <figcaption>To telefoner. Kryptert innhold. Nettleverandøren kan fremdeles se metadata.</figcaption>
+      <figcaption>To brukere med hver sin telefon. Én kanal, tydelig forbindelse.</figcaption>
     </figure>
     <figure class="about-comic-frame">
       <img src="nest-flow.svg" alt="Tre illustrerte oppgavekort koblet sammen i en arbeidsflyt" loading="lazy" decoding="async">
-      <figcaption>Klar kan gjøres nå. Venter trenger et ferdig vilkår. Ferdig åpner neste oppgave.</figcaption>
+      <figcaption>Planlegg sammen: klar, venter og ferdig henger sammen.</figcaption>
     </figure>
   `;
 

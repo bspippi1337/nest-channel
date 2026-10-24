@@ -608,3 +608,63 @@ dialog::backdrop { background: rgba(4,10,10,.84); backdrop-filter: blur(6px); }
   .topbar-actions > button { padding-inline: 5px !important; font-size: .71rem; }
   .topbar-actions .connection-state { padding-inline: 5px !important; font-size: .69rem; }
 }
+
+/* ONE ROW / FOUR CONTROLS. Fits 280px Android width without letter stacks.
+   Brand stays on its own line; status, risk, About, Setup are one visual unit. */
+@media (max-width: 560px) {
+  .topbar-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0,1.12fr) minmax(0,1.56fr) minmax(0,.48fr) minmax(0,.92fr) !important;
+    grid-template-rows: minmax(36px,auto) !important;
+    grid-auto-flow: row;
+    width: 100%;
+    gap: 4px !important;
+    align-items: stretch !important;
+  }
+  .topbar-actions .connection-state,
+  .topbar-actions .nest-threat-button,
+  .topbar-actions .about-button,
+  .topbar-actions .nest91-launch {
+    grid-row: 1 !important;
+    order: initial !important;
+    flex: none !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    padding: 5px 3px !important;
+    font-size: clamp(.58rem,2.65vw,.75rem) !important;
+    line-height: 1.15;
+    border-radius: 9px;
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    letter-spacing: -.015em;
+    text-align: center;
+    overflow: visible;
+  }
+  .topbar-actions .connection-state {
+    grid-column: 1 !important;
+    display: flex;
+    justify-content: center !important;
+    gap: 3px !important;
+    font-size: clamp(.55rem,2.55vw,.72rem) !important;
+  }
+  .topbar-actions .nest-threat-button { grid-column: 2 !important; }
+  .topbar-actions .about-button { grid-column: 3 !important; }
+  .topbar-actions .nest91-launch { grid-column: 4 !important; }
+  .topbar-actions .peer-count { display: none !important; }
+  .topbar .status-dot { width: 6px; height: 6px; flex: 0 0 6px; }
+  .topbar .brand-signature h1 { white-space: nowrap; }
+  .nest-intro-art { object-fit: contain; opacity: .54; }
+}
+@media (max-width: 320px) {
+  .topbar-actions { gap: 3px !important; }
+  .topbar-actions > button, .topbar-actions .connection-state {
+    font-size: .60rem !important; padding-inline: 2px !important;
+  }
+  .topbar .status-dot { width: 5px; height: 5px; flex: 0 0 5px; }
+}
+.nest-intro-art { max-height: 250px; }
+.about-feature-art img { max-width: 100%; object-fit: contain; }

@@ -49,7 +49,7 @@
     btn.className = "ghost nest-threat-button";
     btn.setAttribute("aria-label", "Endre sikkerhetsprofil");
     const refresh = () => {
-      btn.textContent = isStrict() ? "Høyrisiko · PÅ" : "Standard · PÅ";
+      btn.textContent = isStrict() ? "Høyrisiko PÅ" : "Standard PÅ";
       btn.setAttribute("aria-label", isStrict() ? "Høyrisikoprofil aktiv. Trykk for å endre." : "Standardprofil aktiv, ikke anonym. Trykk for å endre.");
       btn.title = isStrict() ? "Blokkerer usikre standardvalg; appen er fortsatt ikke sikkerhetssertifisert."
         : "Standard beta kan eksponere IP, trafikkmetadata og hemmelige invitasjoner.";

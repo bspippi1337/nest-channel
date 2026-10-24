@@ -1,1 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 250" role="img"><title>To personer, to telefoner, og en kryptert konvolutt</title><style>.hand{stroke:#e4efdb;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}.mint{stroke:#acebc7;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}.gold{stroke:#d6b489;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}.dim{stroke:#83a89a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.bg{fill:#0e281f}.fill{fill:#e4efdb}@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;transform:none!important;stroke-dashoffset:0!important;opacity:1!important}}</style><style>.path{stroke-dasharray:8 12;animation:msg 3s ease-out 1 both}@keyframes msg{from{stroke-dashoffset:120;opacity:.2}to{stroke-dashoffset:0;opacity:1}}</style><g transform="translate(105 12) scale(1 1)"><circle class="hand" cx="0" cy="55" r="23"/><path class="hand" d="M-6 54l1 1m14-2l1 1M-4 79L-8 153-28 206M-8 153L18 206M-7 108L-36 137M-7 108L22 131"/><rect x="21" y="114" width="30" height="47" rx="5" class="bg" stroke="#acebc7" stroke-width="2"/><circle cx="36" cy="150" r="2" class="fill"/></g><g transform="translate(535 12) scale(-1 1)"><circle class="hand" cx="0" cy="55" r="23"/><path class="hand" d="M-6 54l1 1m14-2l1 1M-4 79L-8 153-28 206M-8 153L18 206M-7 108L-36 137M-7 108L22 131"/><rect x="21" y="114" width="30" height="47" rx="5" class="bg" stroke="#acebc7" stroke-width="2"/><circle cx="36" cy="150" r="2" class="fill"/></g><path class="gold path" d="M175 128Q319 18 466 128"/><path class="dim" d="M177 157Q322 214 463 158" stroke-dasharray="4 8"/><rect x="277" y="103" width="86" height="60" rx="8" class="bg" stroke="#acebc7" stroke-width="3"/><path class="mint" d="M280 107l40 30 40-30"/><path class="gold" d="M304 99v-11a16 16 0 0 1 32 0v11"/><path class="dim" d="M315 38v15m-8-8h16M410 70v12m-6-6h12"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 250" role="img" aria-label="To mennesker med hver sin telefon sender en kryptert konvolutt">
+<title>To mennesker med hver sin telefon sender en kryptert konvolutt</title>
+<style>
+.ink{fill:none;stroke:#ecf4e5;stroke-width:3.1;stroke-linecap:round;stroke-linejoin:round}
+.pale{fill:none;stroke:#80b09b;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+.mint{fill:none;stroke:#bcecca;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.gold{fill:none;stroke:#e4c18c;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.panel{fill:#0a241c;stroke:#bcecca;stroke-width:2.6}
+.fill{fill:#d9ead5}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;stroke-dashoffset:0!important;opacity:1!important}}
+</style>
+<style>.envelope{animation:connect 2.2s ease-out 1 both}@keyframes connect{0%{opacity:.35;transform:translate(-36px,12px)}100%{opacity:1;transform:translate(0,0)}}</style>
+<path class="pale" d="M15 237Q320 246 625 237"/>
+<g class="person" transform="translate(108 0) scale(1 1)">
+  <circle class="ink" cx="0" cy="66" r="25"/>
+  <path class="ink" d="M-10 60l-1 3m22-2l-1 3M-7 85Q-2 88 6 84M-3 91L-6 151 M-6 152L-37 213 M-6 152L22 213M-3 114L-33 142 M-4 113L18 136"/>
+  <path class="pale" d="M-18 46q-1-14 10-17m17 0q11 4 12 15"/>
+  <g class="phone">
+    <rect class="panel" x="14" y="123" width="35" height="59" rx="7" transform="rotate(-9 14 123)"/>
+    <path class="pale" d="M22 137l18-3M22 148l18-3" />
+    <circle class="fill" cx="30" cy="171" r="2.2"/>
+  </g>
+  </g><g class="person" transform="translate(532 0) scale(-1 1)">
+  <circle class="ink" cx="0" cy="66" r="25"/>
+  <path class="ink" d="M-10 60l-1 3m22-2l-1 3M-7 85Q-2 88 6 84M-3 91L-6 151 M-6 152L-37 213 M-6 152L22 213M-3 114L-33 142 M-4 113L18 136"/>
+  <path class="pale" d="M-18 46q-1-14 10-17m17 0q11 4 12 15"/>
+  <g class="phone">
+    <rect class="panel" x="14" y="123" width="35" height="59" rx="7" transform="rotate(-9 14 123)"/>
+    <path class="pale" d="M22 137l18-3M22 148l18-3" />
+    <circle class="fill" cx="30" cy="171" r="2.2"/>
+  </g>
+  </g>
+
+<path class="pale" d="M178 130Q319 51 462 130" stroke-dasharray="4 9"/>
+<g class="envelope">
+ <rect class="panel" x="274" y="103" width="91" height="63" rx="7"/>
+ <path class="mint" d="M279 109l40 28 40-28"/>
+ <path class="gold" d="M304 101V90a16 16 0 0 1 32 0v11"/>
+</g><path class="gold" d="M246 40v16m-8-8h16M412 61v13m-6-6h13"/>
+
+</svg>

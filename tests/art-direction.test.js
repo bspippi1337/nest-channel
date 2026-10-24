@@ -62,7 +62,7 @@ test("About includes illustrated editorial story and up-to-date honest release l
   assert.match(js, /ILLUSTRERT HISTORIE/);
   assert.match(js, /nest-flow\.svg/);
   assert.match(js, /Versjon 0\.9\.3/);
-  assert.match(html, /ikke dokumentert anonymitet, forward secrecy/);
+  assert.match(html, /uten dokumentert anonymitet eller forward secrecy/);
   assert.match(html, /SIKKERHET/);
   assert.doesNotMatch(js, /Versjon 0\.[578]\./);
 });
@@ -73,8 +73,8 @@ test("long Norwegian words and related header controls must not break into lette
  assert.match(css,/word-break: normal/);
  assert.match(css,/overflow-wrap: normal/);
  assert.match(css,/\.nest91-head \.close \{ flex: 0 0 42px/);
- assert.match(css,/\.nest-threat-button \{ flex-basis: 100% !important/);
- assert.match(css,/\.topbar-actions > button \{ flex: 0 0 auto !important/);
+ assert.match(css,/\.nest-threat-button \{ grid-column: 2 !important/);
+ assert.match(css,/grid-template-columns: minmax\(0,1\.12fr\) minmax\(0,1\.56fr\)/);
  assert.match(css,/max-width:365px/);
  assert.match(html,/class="nest-phrase">Én tanke\./);
 });
@@ -91,16 +91,33 @@ test("illustration movements are meaningful, short and respect reduced motion", 
  assert.match(about,/nest-comic-about\.svg/);
 });
 
-test("phone header keeps offline/security and About/Setup on their own intact rows", () => {
- const css=read("art-direction.css"), wizard=read("nest-wizard-v091.js"),security=read("high-threat.js");
- assert.match(css,/grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1\.22fr\)/);
- assert.match(css,/\.topbar-actions \.connection-state \{[\s\S]*?grid-column: 1; grid-row: 1;/);
- assert.match(css,/\.topbar-actions \.nest-threat-button \{[\s\S]*?grid-column: 2; grid-row: 1;/);
- assert.match(css,/\.topbar-actions \.about-button \{ order: 2; grid-column: 1; grid-row: 2;/);
- assert.match(css,/\.topbar-actions \.nest91-launch \{ order: 3; grid-column: 2; grid-row: 2;/);
+test("four mobile header actions stay on one row including at narrow widths",()=>{
+ const css=read("art-direction.css"),wiz=read("nest-wizard-v091.js"),risk=read("high-threat.js");
+ assert.match(css,/grid-template-columns: minmax\(0,1\.12fr\) minmax\(0,1\.56fr\)/);
+ for(let i=1;i<=4;i++)assert.match(css,new RegExp("grid-column: "+i+" !important"));
+ assert.match(css,/grid-row: 1 !important/);
  assert.match(css,/white-space: nowrap !important/);
- assert.match(css,/overflow-wrap: normal !important/);
- assert.match(wizard,/Oppsett 0\.9\.3/);
- assert.doesNotMatch(wizard,/Oppsett 0\.9\.2/);
- assert.match(security,/Høyrisiko · PÅ/);
+ assert.match(wiz,/Oppsett 0\.9\.3/);
+ assert.match(risk,/Høyrisiko PÅ/);
+});
+test("all 4 editorial storyboards show two people with two visible phones",()=>{
+ for(const name of ["about","repo","qr","verify"]){
+  const svg=read("nest-comic-"+name+".svg");
+  assert.match(svg,/<g[^>]*class="person"/);
+  assert.match(svg,/<g[^>]*class="person"/);
+  assert.equal((svg.match(/class="person"/g)||[]).length,2,name);
+  assert.equal((svg.match(/class="phone"/g)||[]).length,2,name);
+  assert.match(svg,/prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(svg,/infinite|<script|onload=/i);
+ }
+ const html=read("index.html");
+ assert.match(html,/nest-intro-art" src="nest-comic-about.svg"/);
+ assert.match(html,/about-feature-art"><img src="nest-comic-about.svg"/);
+});
+test("product text is positive and honest, without high-risk certification claims",()=>{
+ const html=read("index.html"), wiz=read("nest-wizard-v091.js");
+ assert.match(html,/To telefoner\./);
+ assert.match(html,/forward secrecy/);
+ assert.match(wiz,/Telefon A viser QR-koden/);
+ assert.doesNotMatch(wiz,/NEST er testprogramvare, ikke godkjent/);
 });
