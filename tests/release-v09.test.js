@@ -12,7 +12,7 @@ test("v0.9 targets Android API 36 with stable package identity", () => {
   assert.match(gradle, /compileSdk 36/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /versionCode 15/);
-  assert.match(gradle, /versionName '0\.9\.2'/);
+  assert.match(gradle, /versionName '0\.9\.3'/);
 });
 
 test("signed release is gated by protected environment secrets", () => {
