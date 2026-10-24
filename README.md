@@ -1,3 +1,6 @@
+## Experimental local cryptographic session rotation
+The branch `security/094-rotating-local-sessions` introduces signed and time-bounded v4 local P2P sessions, with automatic ephemeral ECDH rekeying every fifteen minutes. Old session ciphertext cannot be decrypted with new traffic keys alone. Both devices must run v4. This is a transport defense, **not full forward secrecy of NEST workspace or GitHub snapshots**. See `THREAT-MODEL-HIGH-RISK.md` for exact limitations. Independent review and the release safety gate remain mandatory.
+
 ## NEST Channel / BLCKSWAN Studio visual direction (0.9.3 security candidate)
 
 The entire user-facing application has been re-art-directed for the next beta: a single design system that spans the header, campaign masthead, GitHub/local connection flows, taskboard, messaging, PTT, pairing, setup wizard, mobile navigation, notifications, task detail and About. The design language is mineral green / warm ivory / quiet brass, an editorial display serif with a disciplined system sans UI, custom local SVG illustrations, restrained borders, touch-friendly controls and safe-area-aware Android layouts.

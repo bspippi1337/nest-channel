@@ -96,3 +96,29 @@ test("native Android owns the threat-profile policy and microphone gate", () => 
  assert.match(js, /window\.NativeHost\.requestThreatProfileToggle\(\)/);
  assert.doesNotMatch(js, /localStorage\.setItem\(KEY/);
 });
+
+test("local v4 sessions rotate, authenticate freshness, reject replay and bound resource use", () => {
+ const java=read("android/app/src/main/java/no/blckswan/nestchannel/LocalSyncManager.java");
+ assert.match(java,/PROTOCOL_VERSION = 4/);
+ assert.match(java,/SESSION_ROTATE_MS = 15 \* 60_000L/);
+ assert.match(java,/scheduleAtFixedRate\(this::rotateLocalSession/);
+ assert.match(java,/sessionKeyPair = fresh/);
+ assert.match(java,/peer\.key = null/);
+ assert.match(java,/MAX_SIGNED_HELLO_SKEW_MS/);
+ assert.match(java,/helloCanonical\(sender, identity, session, nonce, sentAt\)/);
+ assert.match(java,/sentAt <= peer\.lastSignedHello/);
+ assert.match(java,/epoch\.equals\(peer\.epoch\)/);
+ assert.match(java,/peer\.rememberAuthenticated\(messageId\)/);
+ assert.match(java,/Mac\.getInstance\("HmacSHA256"\)/);
+ assert.match(java,/cipher\.updateAAD\(aadForEpoch/);
+ assert.match(java,/MAX_ACTIVE_ASSEMBLIES/);
+ assert.match(java,/MAX_FRAGMENT_COUNT/);
+ assert.match(java,/MAX_WORKSPACE_BYTES/);
+ assert.match(read("SECURITY-READINESS.json"),/"release_blocked": true/);
+});
+test("GitHub sync surfaces Keystore failure and cleans failed connection",()=>{
+ const js=read("github-sync.js");
+ assert.match(js,/window\.NativeHost\.loadSecret\(key\) !== String\(value\)/);
+ assert.match(js,/disconnectGithub\(\);\s*setConnectionState\("offline"/);
+ assert.doesNotMatch(js,/function secretSave\(key, value\) \{\s*try/);
+});

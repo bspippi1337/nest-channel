@@ -423,7 +423,8 @@
       if (!window.NESTSecurity?.isStrict())
         button(body, "Kopier privat invitasjonskode", copyInvite);
       else note(body, "Høyrisikoprofil: nøkkelen kan bare overføres ved direkte QR-skanning. Utklippstavlen er sperret.");
-      button(body, "Lag ny QR med ny utløpstid", () => render());
+      button(body, "Forny QR-tid · samme kanalnøkkel", () => render());
+      note(body, "QR-utløp gjelder invitasjonskoden, ikke kanalnøkkelen. Å fornye QR roterer ikke tidligere delte hemmeligheter.");
       if (state.visibility === "private") {
         note(body, "To separate GitHub-kontoer er anbefalt. Oppgi den andres GitHub-brukernavn, inviter med skrivetilgang, og be telefon B godkjenne invitasjonen før kanalen testes.");
         const input = tag("input", "", "nest91-input", body); input.id = "nest91-partner"; input.placeholder = "GitHub-brukernavn til telefon B";
