@@ -212,6 +212,7 @@
     cacheIssue(hash);
   }
   async function encryptedRoundTrip() {
+    window.NESTSecurity?.requireNative();
     window.NESTSecurity?.requireStrongChannelKey(state.key);
     const hash = await roomHash(state.channel);
     const salt = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("nest-key:" + hash))).slice(0, 16);
@@ -318,6 +319,7 @@
     if (state.error) note(body, state.error, "error");
     if (state.step === "welcome") {
       note(body, "NEST er testprogramvare, ikke godkjent for kildevern, krigsområder eller statsaktører.");
+      if (window.NESTSecurity?.isStrict()) note(body, "Streng profil krever Android-appen. Ikke send følsomme data via nettleserversjonen.");
       note(body, "Ingen laptop. NEST krypterer meldingene på telefonen. Et privat GitHub-repo skjuler innhold og repoaktivitet for uvedkommende; GitHub som tjeneste ser fortsatt kontoen og trafikken.");
       button(body, "Telefon A · Opprett kanal", () => { state.role = "host"; state.channel ||= randomChannel(); state.key ||= randKey(); next("account"); }, "primary");
       button(body, "Telefon B · Bli med", () => { state.role = "join"; next("import"); });

@@ -42,6 +42,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
+import java.util.Collections;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -152,7 +154,7 @@ public final class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
         settings.setSupportMultipleWindows(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.2");
+        settings.setUserAgentString(settings.getUserAgentString() + " NEST-Channel/0.9.3");
 
         // Only bundled app-origin code may ever obtain access to native credentials.
         webView.setWebChromeClient(new WebChromeClient() {
@@ -200,12 +202,22 @@ public final class MainActivity extends Activity {
                         && "appassets.androidplatform.net".equalsIgnoreCase(uri.getHost())
                         && String.valueOf(uri.getPath()).startsWith("/assets/");
                 // Do not allow a navigated remote page to obtain the NativeHost JS bridge.
-                return !bundled;
+                return !bundled || !request.isForMainFrame();
             }
             @Nullable
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return loader.shouldInterceptRequest(request.getUrl());
+                Uri uri = request.getUrl();
+                String host = uri.getHost();
+                if (!"https".equalsIgnoreCase(uri.getScheme())) return blockedResource(403);
+                if ("appassets.androidplatform.net".equalsIgnoreCase(host)) {
+                    WebResourceResponse bundled = loader.shouldInterceptRequest(uri);
+                    return bundled != null ? bundled : blockedResource(404);
+                }
+                // CSP additionally restricts fetch/connect; this native gate rejects
+                // non-API traffic even if browser content is tampered with.
+                if ("api.github.com".equalsIgnoreCase(host)) return null;
+                return blockedResource(403);
             }
 
             @Override
@@ -562,6 +574,12 @@ public final class MainActivity extends Activity {
 
     private void callJavaScript(String script) {
         runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript(script, null); });
+    }
+
+    private static WebResourceResponse blockedResource(int status) {
+        return new WebResourceResponse("text/plain", "UTF-8", status,
+                status == 404 ? "Not Found" : "Forbidden",
+                Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
     }
 
     private static String randomUrlToken(int bytes) {

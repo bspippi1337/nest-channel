@@ -44,7 +44,7 @@ test("encrypted data survives failures; never overwrite unreadable ciphertext", 
 test("risk profile is bundled and cache version incremented", () => {
   for (const p of ["index.html", "service-worker.js", "android/app/build.gradle"])
     assert.match(read(p), /high-threat\.js/, p);
-  assert.match(read("service-worker.js"), /nest-channel-v14/);
+  assert.match(read("service-worker.js"), /nest-channel-v15/);
 });
 
 test("JavaScript may not query private native-only OAuth PKCE verifier or state", () => {
@@ -61,4 +61,25 @@ test("external-intent bridge opens only explicit account/help pages", () => {
   assert.match(java, /"\/settings\/personal-access-tokens\/new"\.equals\(path\)/);
   assert.match(java, /if \(!githubAllowed && !helpAllowed\) return/);
   assert.match(java, /uri\.getUserInfo\(\) != null/);
+});
+
+test("network egress is limited to trusted asset origin and GitHub API", () => {
+ const j=read("android/app/src/main/java/no/blckswan/nestchannel/MainActivity.java");
+ assert.match(j, /"appassets\.androidplatform\.net"\.equalsIgnoreCase\(host\)/);
+ assert.match(j, /"api\.github\.com"\.equalsIgnoreCase\(host\)/);
+ assert.match(j, /return blockedResource\(403\)/);
+ assert.match(j, /blockedResource\(404\)/);
+});
+test("private repo is rechecked before every GitHub snapshot upload", () => {
+ const js=read("github-sync.js");
+ const part=js.slice(js.indexOf("async function publishWorkspace"),js.indexOf("async function attemptPublish"));
+ assert.match(part,/requirePrivateRepo\(repoData\)/);
+ assert.match(part,/requireNative\(\)/);
+ assert.match(read("index.html"), /id="relayUrl" type="text" value=""/);
+});
+test("native app cannot leave channel password in WebView sessionStorage", () => {
+ const js=read("storage-sandbox.js");
+ assert.match(js,/nativeStore\(\)\.saveSecret\("channel_password"/);
+ assert.match(js,/if \(nativeStore\(\)\)/);
+ assert.match(read("high-threat.js"),/function requireNative\(\)/);
 });

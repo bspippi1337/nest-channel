@@ -23,3 +23,9 @@ This branch reduces accidental leaks without replacing NEST's legacy static shar
 References: https://mas.owasp.org/MASVS/ ; https://signal.org/docs/specifications/doubleratchet/
 
 Additional narrowing: NativeBridge now rejects access to internal OAuth PKCE state/verifier keys and only exposes the specific legacy keys needed by the WebView. External intents are limited to fixed GitHub account/device paths and the assistant homepage. The `addJavascriptInterface` bridge remains a release blocker for a compromised WebView, even with CSP and navigation restrictions.
+
+## Additional automated gates
+- A proposed 0.9.3 upgrade uses versionCode 15 (0.9.2 uses 14), with unchanged original 0.9.0 Play signing key verification.
+- The native WebView denies non-asset/non-GitHub-API requests; unknown bundled asset paths return 404 instead of external networking.
+- Every GitHub workspace publish validates the private repository before uploading; TOCTOU changes remain theoretically possible, so private GitHub is still not guaranteed anonymous.
+- High-threat browser fallback is blocked where secrets would otherwise be stored without Android Keystore. Android APK avoids WebView sessionStorage for channel key handoff.

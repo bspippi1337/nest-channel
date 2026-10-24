@@ -8,7 +8,7 @@ on:
       version:
         description: Release tag/version
         required: true
-        default: v0.9.2
+        default: v0.9.3
         type: string
       publish:
         description: Publish/update GitHub Release after verification
@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION='${{ inputs.version || 'v0.9.2' }}'
+          VERSION='${{ inputs.version || 'v0.9.3' }}'
           VERSION_NAME="$(sed -n "s/^[[:space:]]*versionName '\\([^']*\\)'.*/\\1/p" android/app/build.gradle | head -1)"
           if [ "${VERSION#v}" != "$VERSION_NAME" ]; then
             echo "Release version must match Android versionName: $VERSION_NAME" >&2
@@ -130,7 +130,7 @@ jobs:
             exit 1
           fi
 
-          printf '%s\n' "$APK_ACTUAL" > NEST-Channel-v0.9.2-cert-sha256.txt
+          printf '%s\n' "$APK_ACTUAL" > NEST-Channel-v0.9.3-cert-sha256.txt
 
       - name: Verify the original v0.9.0 app-signing certificate
         env:
@@ -155,17 +155,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION='${{ inputs.version || 'v0.9.2' }}'
+          VERSION='${{ inputs.version || 'v0.9.3' }}'
           SAFE_VERSION="${VERSION#v}"
           cp android/app/build/outputs/apk/release/app-release.apk "NEST-Channel-${SAFE_VERSION}-release.apk"
           cp android/app/build/outputs/bundle/release/app-release.aab "NEST-Channel-${SAFE_VERSION}-release.aab"
           sha256sum "NEST-Channel-${SAFE_VERSION}-release.apk" "NEST-Channel-${SAFE_VERSION}-release.aab" | tee "NEST-Channel-${SAFE_VERSION}-SHA256SUMS.txt"
-          mv NEST-Channel-v0.9.2-cert-sha256.txt "NEST-Channel-${SAFE_VERSION}-cert-sha256.txt"
+          mv NEST-Channel-v0.9.3-cert-sha256.txt "NEST-Channel-${SAFE_VERSION}-cert-sha256.txt"
 
       - name: Upload verified build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NEST-Channel-v0.9.2-SIGNED
+          name: NEST-Channel-v0.9.3-SIGNED
           path: |
             NEST-Channel-*-release.apk
             NEST-Channel-*-release.aab
@@ -181,9 +181,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION='${{ inputs.version || 'v0.9.2' }}'
+          VERSION='${{ inputs.version || 'v0.9.3' }}'
           SAFE_VERSION="${VERSION#v}"
-          NOTES=$'NEST Channel v0.9.2 signed limited beta\n\n- Android API 36\n- production app-signing identity v1\n- signed APK for limited distribution (up to 20 registered devices)\n- signed AAB retained for migration/testing\n- v1.0 is reserved for full Google Play distribution\n\nThe signing certificate fingerprint and SHA-256 checksums are attached.'
+          NOTES=$'NEST Channel v0.9.3 signed limited beta\n\n- Android API 36\n- production app-signing identity v1\n- signed APK for limited distribution (up to 20 registered devices)\n- signed AAB retained for migration/testing\n- v1.0 is reserved for full Google Play distribution\n\nThe signing certificate fingerprint and SHA-256 checksums are attached.'
           if gh release view "$VERSION" --repo '${{ github.repository }}' >/dev/null 2>&1; then
             gh release upload "$VERSION" \
               "NEST-Channel-${SAFE_VERSION}-release.apk" \

@@ -11,6 +11,11 @@
     try { return typeof localStorage === "undefined" || localStorage.getItem(KEY) !== "standard"; }
     catch { return true; } // Denied storage must fail closed.
   };
+  function requireNative() {
+    if (isStrict() && (typeof window === "undefined" || !window.NativeHost?.saveSecret || !window.NativeHost?.loadSecret))
+      throw new Error("Høyrisikoprofil krever Android APK og Android Keystore. Nettleserversjonen er ikke godkjent.");
+    return true;
+  }
   function requirePrivateRepo(data) {
     if (isStrict() && (!data || data.private !== true))
       throw new Error("Høyrisikoprofil blokkerer offentlige repoer. Bruk et NYTT privat repo.");
@@ -64,5 +69,5 @@
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupUi, { once: true });
     else setupUi();
   }
-  return Object.freeze({ isStrict, requirePrivateRepo, requireStrongChannelKey, requireRadioAllowed, requireClipboardAllowed });
+  return Object.freeze({ isStrict, requireNative, requirePrivateRepo, requireStrongChannelKey, requireRadioAllowed, requireClipboardAllowed });
 });

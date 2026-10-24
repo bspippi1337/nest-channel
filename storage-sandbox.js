@@ -76,7 +76,10 @@
     const nicknameInput = document.getElementById("nickname");
     const passwordInput = document.getElementById("channelPassword");
 
-    const savedPassword = sessionStorage.getItem(PASSWORD_KEY);
+    // Never write an Android channel secret into WebView sessionStorage.
+    const savedPassword = nativeStore()
+      ? nativeStore().loadSecret("channel_password")
+      : (window.NESTSecurity?.isStrict() ? "" : sessionStorage.getItem(PASSWORD_KEY));
     if (savedPassword) passwordInput.value = savedPassword;
 
     let replaying = false;
@@ -102,7 +105,15 @@
         nickname: nicknameInput.value.trim()
       }));
       originalSet.call(localStorage, NS_KEY, targetNamespace);
-      sessionStorage.setItem(PASSWORD_KEY, passwordInput.value);
+      if (nativeStore()) {
+        nativeStore().saveSecret("channel_password", passwordInput.value);
+        if (nativeStore().loadSecret("channel_password") !== passwordInput.value)
+          throw new Error("Unable to protect channel key before switching channels");
+      } else if (window.NESTSecurity?.isStrict()) {
+        throw new Error("Høyrisikoprofil krever Android APK for sikker nøkkellagring");
+      } else {
+        sessionStorage.setItem(PASSWORD_KEY, passwordInput.value);
+      }
       sessionStorage.setItem(AUTOCONNECT_KEY, "1");
       location.reload();
     }, true);

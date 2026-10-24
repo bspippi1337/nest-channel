@@ -22,8 +22,8 @@ android {
         applicationId 'no.blckswan.nestchannel'
         minSdk 26
         targetSdk 36
-        versionCode 14
-        versionName '0.9.2'
+        versionCode 15
+        versionName '0.9.3'
         buildConfigField 'String', 'NEST_GITHUB_CLIENT_ID', javaString(githubClientId)
         buildConfigField 'String', 'NEST_GITHUB_CLIENT_SECRET', javaString(githubClientSecret)
     }

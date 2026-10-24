@@ -443,6 +443,13 @@
 
   async function publishWorkspace({ force = false } = {}) {
     if (!window.NEST_GITHUB_CONNECTED) return;
+    // Re-check repository privacy before every upload, including auto-sync.
+    // This is not atomic with GitHub visibility changes, but stops known exposure.
+    if (window.NESTSecurity?.isStrict()) {
+      window.NESTSecurity.requireNative();
+      const repoData = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
+      window.NESTSecurity.requirePrivateRepo(repoData);
+    }
     const digest = await digestWorkspace();
     if (!force && digest === lastSentDigest) return;
     const encrypted = await encryptPayload({ kind: "workspace", workspace });
@@ -494,7 +501,7 @@
     if (!nickname) return alert("Skriv et kallenavn.");
     if (password.length < 8) return alert("Kanalpassordet må ha minst 8 tegn.");
     let parsed;
-    try { parsed = parseRepo(el.relayUrl.value || "bspippi1337/nest-channel"); }
+    try { parsed = parseRepo(el.relayUrl.value); }
     catch (error) { return alert(error.message); }
     repoOwner = parsed.owner;
     repoName = parsed.repo;
@@ -506,6 +513,7 @@
     setConnectionState("connecting", "Finner kryptert GitHub-kanal …");
     try {
       if (window.NESTSecurity?.isStrict()) {
+        window.NESTSecurity.requireNative();
         window.NESTSecurity.requireStrongChannelKey(password);
         const repoData = await api(`/repos/${encodeURIComponent(repoOwner)}/${encodeURIComponent(repoName)}`);
         window.NESTSecurity.requirePrivateRepo(repoData);
@@ -581,7 +589,7 @@
   const storedClientId = bundledClientId() || secretLoad("github_client_id") || localStorage.getItem(CLIENT_ID_KEY) || "";
   ui.clientId.value = storedClientId;
   token = secretLoad("github_token");
-  if (!el.relayUrl.value.trim()) el.relayUrl.value = "bspippi1337/nest-channel";
+  // No fallback to the public source-code repository as a communications channel.
   setAuthUi();
   verifyToken().then(maybeAutoConnect);
 
