@@ -27,7 +27,7 @@ test("all original UI interaction IDs, security controls and dialogs survive des
 
 test("vector assets are bundled locally; no remote fonts, visual trackers or unsafe external images", () => {
   const html = read("index.html"), gradle = read("android/app/build.gradle"), sw = read("service-worker.js");
-  for (const asset of ["art-direction.css", "nest-orbit.svg", "nest-flow.svg", "nest-empty.svg", "icon.svg"]) {
+  for (const asset of ["art-direction.css", "nest-comic-about.svg", "nest-flow.svg", "nest-empty.svg", "icon.svg"]) {
     assert.ok(fs.existsSync(path.join(root, asset)), asset);
     assert.ok(html.includes(asset), `Not displayed: ${asset}`);
     assert.ok(gradle.includes(asset), `Not bundled by Gradle: ${asset}`);
@@ -63,7 +63,7 @@ test("About includes illustrated editorial story and up-to-date honest release l
   assert.match(js, /nest-flow\.svg/);
   assert.match(js, /Versjon 0\.9\.3/);
   assert.match(html, /uten dokumentert anonymitet eller forward secrecy/);
-  assert.match(html, /SIKKERHET/);
+  assert.match(html, /PERSONVERN OG KONTROLL/);
   assert.doesNotMatch(js, /Versjon 0\.[578]\./);
 });
 
